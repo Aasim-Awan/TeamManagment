@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Cricket Bat (Stylized) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M80,30l-8-8L25,69l5,12l12,5L80,30z"/>
+
+    <!-- Cricket Ball -->
+    <path
+        android:fillColor="#FF5252"
+        android:pathData="M40,75c4,0 7.5,-3.5 7.5,-7.5S44,60 40,60s-7.5,3.5 -7.5,7.5S36,75 40,75z"/>
+
+    <!-- Currency Sign ($) -->
+    <path
+        android:fillColor="#FFD600"
+        android:pathData="M65,55c-2,-1 -3,-2 -3,-3s1,-2 3,-2s3,1 3,2h3c0,-3 -2,-4.5 -5,-5V45h-3v2.5c-3,0.5 -5,2.5 -5,5c0,3.5 3,4.5 6,5.5c2,1 3,2 3,3s-1,2 -3,2s-3,-1 -3,-2h-3c0,3 2,4.5 5,5V68h3v-2.5c3,-0.5 5,-2.5 5,-5C71,57.5 68,56.5 65,55z"/>
+</vector>
