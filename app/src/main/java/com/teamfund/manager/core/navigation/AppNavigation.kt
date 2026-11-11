@@ -1,7 +1,10 @@
 package com.teamfund.manager.core.navigation
 
+import com.teamfund.manager.feature.allexpenses.AllExpensesScreen
+import com.teamfund.manager.feature.allexpenses.AllExpensesViewModel
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -23,6 +26,8 @@ import com.teamfund.manager.feature.matches.MatchesScreen
 import com.teamfund.manager.feature.matches.MatchesViewModel
 import com.teamfund.manager.feature.reports.ReportsScreen
 import com.teamfund.manager.feature.reports.ReportsViewModel
+import com.teamfund.manager.feature.kit.KitScreen
+import com.teamfund.manager.feature.kit.KitViewModel
 import com.teamfund.manager.feature.settings.SettingsScreen
 import com.teamfund.manager.feature.settings.SettingsViewModel
 import com.teamfund.manager.feature.settlements.SettlementsScreen
@@ -61,6 +66,14 @@ fun AppNavigation(
                 onNavigateToMatches = { navController.navigate(Screen.Matches.route) },
                 onNavigateToTeam = { navController.navigate(Screen.TeamRoster.route) },
                 onNavigateToExpenses = { navController.navigate(Screen.Expenses.route) },
+                // All expenses is a bottom-bar tab, so open it the same way the bar does.
+                onNavigateToAllExpenses = {
+                    navController.navigate(Screen.AllExpenses.route) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
                 onNavigateToContributions = { navController.navigate(Screen.Contributions.route) },
                 onNavigateToReports = { navController.navigate(Screen.Reports.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
@@ -115,6 +128,7 @@ fun AppNavigation(
                 viewModel = viewModel,
                 onNavigateToAddExpense = { mId -> navController.navigate(Screen.AddExpense.createRoute(mId)) },
                 onNavigateToEditMatch = { mId -> navController.navigate(Screen.AddMatch.createRoute(mId)) },
+                onNavigateToExpenseDetail = { id -> navController.navigate(Screen.ExpenseDetail.createRoute(id)) },
                 onBackClick = { navController.popBackStack() }
             )
         }
@@ -148,7 +162,12 @@ fun AppNavigation(
             AddPlayerScreen(
                 viewModel = viewModel,
                 playerId = playerId,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onOpenExistingPlayer = { id ->
+                    navController.navigate(Screen.PlayerDetail.createRoute(id)) {
+                        popUpTo(Screen.AddPlayer.route) { inclusive = true }
+                    }
+                }
             )
         }
 
@@ -167,6 +186,22 @@ fun AppNavigation(
                 onNavigateToAddContribution = { pId -> navController.navigate(Screen.AddContribution.createRoute(pId)) },
                 onNavigateToEditPlayer = { pId -> navController.navigate(Screen.AddPlayer.createRoute(pId)) },
                 onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        // All Expenses ledger (every expense, contribution, settlement and charge)
+        composable(Screen.AllExpenses.route) {
+            val viewModel: AllExpensesViewModel = viewModel(
+                factory = AllExpensesViewModel.Factory(
+                    appContainer.repository,
+                    appContainer.userPreferencesRepository,
+                    appContainer.calculatePlayerBalancesUseCase
+                )
+            )
+            AllExpensesScreen(
+                viewModel = viewModel,
+                onNavigateToExpenseDetail = { expenseId -> navController.navigate(Screen.ExpenseDetail.createRoute(expenseId)) },
+                onNavigateToPlayerDetail = { playerId -> navController.navigate(Screen.PlayerDetail.createRoute(playerId)) }
             )
         }
 
@@ -303,8 +338,16 @@ fun AppNavigation(
             SettingsScreen(
                 viewModel = viewModel,
                 onNavigateToCreateTeam = { navController.navigate(Screen.CreateTeam.route) },
+                onNavigateToKit = { navController.navigate(Screen.Kit.route) },
                 onBackClick = { navController.popBackStack() }
             )
+        }
+
+        composable(Screen.Kit.route) {
+            val viewModel: KitViewModel = viewModel(
+                factory = KitViewModel.Factory(appContainer.repository, appContainer.userPreferencesRepository)
+            )
+            KitScreen(viewModel = viewModel, onBackClick = { navController.popBackStack() })
         }
 
         // 15. Create Team Screen

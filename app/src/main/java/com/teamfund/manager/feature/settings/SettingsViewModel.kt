@@ -12,9 +12,13 @@ import com.teamfund.manager.domain.model.Contribution
 import com.teamfund.manager.domain.model.ContributionPurpose
 import com.teamfund.manager.domain.model.Expense
 import com.teamfund.manager.domain.model.ExpenseCategory
+import com.teamfund.manager.domain.model.DuePeriod
+import com.teamfund.manager.domain.model.DueSchedule
+import com.teamfund.manager.domain.model.Season
 import com.teamfund.manager.domain.model.Team
 import com.teamfund.manager.domain.repository.TeamFundRepository
 import com.teamfund.manager.domain.usecase.CalculateExpenseSharesUseCase
+import com.teamfund.manager.domain.usecase.ImportCsvUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,9 +32,12 @@ data class SettingsUiState(
     val isLoading: Boolean = true,
     val activeTeam: Team? = null,
     val allTeams: List<Team> = emptyList(),
-    val notificationsEnabled: Boolean = true,
+    val notificationsEnabled: Boolean = false,
     val themeMode: String = "SYSTEM",
-    val statusMessage: String? = null
+    val statusMessage: String? = null,
+    val seasons: List<Season> = emptyList(),
+    val activeSeason: Season? = null,
+    val dueSchedules: List<DueSchedule> = emptyList()
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -49,25 +56,105 @@ class SettingsViewModel(
 
     private fun loadSettings() {
         viewModelScope.launch {
-            combine(
-                userPreferencesRepository.activeTeamIdFlow.flatMapLatest { activeId ->
-                    repository.getActiveTeamFlow(activeId)
-                },
-                repository.getAllTeamsFlow(),
-                userPreferencesRepository.notificationsEnabledFlow,
-                userPreferencesRepository.themeModeFlow
-            ) { team, teams, notifs, theme ->
-                SettingsUiState(
-                    isLoading = false,
-                    activeTeam = team,
-                    allTeams = teams,
-                    notificationsEnabled = notifs,
-                    themeMode = theme,
-                    statusMessage = _uiState.value.statusMessage
+            userPreferencesRepository.activeTeamIdFlow
+                .flatMapLatest { activeId -> repository.getActiveTeamFlow(activeId) }
+                .flatMapLatest { team ->
+                    if (team == null) {
+                        return@flatMapLatest combine(
+                            repository.getAllTeamsFlow(),
+                            userPreferencesRepository.notificationsEnabledFlow,
+                            userPreferencesRepository.themeModeFlow
+                        ) { teams, notifs, theme ->
+                            SettingsUiState(
+                                isLoading = false,
+                                allTeams = teams,
+                                notificationsEnabled = notifs,
+                                themeMode = theme,
+                                statusMessage = _uiState.value.statusMessage
+                            )
+                        }
+                    }
+                    combine(
+                        combine(
+                            repository.getAllTeamsFlow(),
+                            userPreferencesRepository.notificationsEnabledFlow,
+                            userPreferencesRepository.themeModeFlow,
+                            ::Triple
+                        ),
+                        combine(
+                            repository.getSeasonsFlow(team.id),
+                            repository.getActiveSeasonFlow(team.id),
+                            repository.getDueSchedulesFlow(team.id),
+                            ::Triple
+                        )
+                    ) { (teams, notifs, theme), (seasons, activeSeason, dueSchedules) ->
+                        SettingsUiState(
+                            isLoading = false,
+                            activeTeam = team,
+                            allTeams = teams,
+                            notificationsEnabled = notifs,
+                            themeMode = theme,
+                            statusMessage = _uiState.value.statusMessage,
+                            seasons = seasons,
+                            activeSeason = activeSeason,
+                            dueSchedules = dueSchedules
+                        )
+                    }
+                }
+                .collect { newState ->
+                    _uiState.value = newState
+                }
+        }
+    }
+
+    fun createSeason(name: String) {
+        viewModelScope.launch {
+            val team = _uiState.value.activeTeam ?: return@launch
+            if (name.isBlank()) return@launch
+            val id = repository.saveSeason(
+                Season(teamId = team.id, name = name.trim(), startDate = System.currentTimeMillis(), isActive = false)
+            )
+            repository.setActiveSeason(team.id, id)
+            _uiState.value = _uiState.value.copy(statusMessage = "Season created")
+        }
+    }
+
+    fun setActiveSeason(seasonId: Long) {
+        viewModelScope.launch {
+            val team = _uiState.value.activeTeam ?: return@launch
+            repository.setActiveSeason(team.id, seasonId)
+        }
+    }
+
+    fun addMonthlyDue(name: String, amountMinorUnits: Long) {
+        viewModelScope.launch {
+            val team = _uiState.value.activeTeam ?: return@launch
+            if (name.isBlank() || amountMinorUnits <= 0L) return@launch
+            repository.saveDueSchedule(
+                DueSchedule(
+                    teamId = team.id,
+                    name = name.trim(),
+                    amountMinorUnits = amountMinorUnits,
+                    period = DuePeriod.MONTHLY,
+                    nextDueDate = System.currentTimeMillis()
                 )
-            }.collect { newState ->
-                _uiState.value = newState
+            )
+            _uiState.value = _uiState.value.copy(statusMessage = "Due schedule saved")
+        }
+    }
+
+    fun generateDueContributions(scheduleId: Long) {
+        viewModelScope.launch {
+            val team = _uiState.value.activeTeam ?: return@launch
+            val schedule = _uiState.value.dueSchedules.find { it.id == scheduleId }
+            val count = repository.generateDueContributions(team.id, scheduleId)
+            val message = when {
+                count > 0 -> "Charged $count players"
+                schedule != null && schedule.nextDueDate > System.currentTimeMillis() ->
+                    "Not due yet. Next due ${DateTimeUtils.formatAbsoluteDate(schedule.nextDueDate)}"
+                else -> "No active players to charge"
             }
+            _uiState.value = _uiState.value.copy(statusMessage = message)
         }
     }
 
@@ -113,75 +200,32 @@ class SettingsViewModel(
     suspend fun exportContributionsCsv(): String? {
         val team = _uiState.value.activeTeam ?: return null
         val contributions = repository.getContributionsFlow(team.id).first()
-        val players = repository.getActivePlayersFlow(team.id).first().associateBy { it.id }
+        val players = repository.getAllPlayersFlow(team.id).first().associateBy { it.id }
         return CsvExporter.exportContributions(contributions, players)
     }
 
     suspend fun exportExpensesCsv(): String? {
         val team = _uiState.value.activeTeam ?: return null
         val expenses = repository.getExpensesFlow(team.id).first()
-        val players = repository.getActivePlayersFlow(team.id).first().associateBy { it.id }
+        val players = repository.getAllPlayersFlow(team.id).first().associateBy { it.id }
         return CsvExporter.exportExpenses(expenses, players)
     }
+
+    private val importCsvUseCase = ImportCsvUseCase(repository)
 
     fun importContributionsFromCsv(csvContent: String) {
         viewModelScope.launch {
             val team = _uiState.value.activeTeam ?: return@launch
-            val playersByName = repository.getActivePlayersFlow(team.id).first()
-                .associateBy { it.name.lowercase() }
-            val parsed = CsvImporter.parseContributions(csvContent)
-            var count = 0
-            parsed.forEach { item ->
-                val player = playersByName[item.playerName.lowercase()] ?: return@forEach
-                repository.addContribution(
-                    Contribution(
-                        teamId = team.id,
-                        playerId = player.id,
-                        amountMinorUnits = MoneyFormatter.toMinorUnits(item.amount),
-                        date = DateTimeUtils.parseDate(item.dateStr),
-                        purpose = ContributionPurpose.entries.find { it.displayName == item.purposeStr }
-                            ?: ContributionPurpose.GENERAL,
-                        notes = item.notes
-                    )
-                )
-                count++
-            }
-            _uiState.value = _uiState.value.copy(statusMessage = "Imported $count contributions")
+            val result = importCsvUseCase.importContributions(team.id, csvContent)
+            _uiState.value = _uiState.value.copy(statusMessage = result.message("contributions"))
         }
     }
 
     fun importExpensesFromCsv(csvContent: String) {
         viewModelScope.launch {
             val team = _uiState.value.activeTeam ?: return@launch
-            val players = repository.getActivePlayersFlow(team.id).first()
-            val playersByName = players.associateBy { it.name.lowercase() }
-            val playerIds = players.map { it.id }
-            val parsed = CsvImporter.parseExpenses(csvContent)
-            var count = 0
-            parsed.forEach { item ->
-                val paidByPlayer = playersByName[item.paidByStr.lowercase()]
-                val amountMinor = MoneyFormatter.toMinorUnits(item.amount)
-                if (amountMinor <= 0L) return@forEach
-                val expense = Expense(
-                    teamId = team.id,
-                    title = item.title,
-                    category = ExpenseCategory.entries.find { it.displayName == item.categoryStr }
-                        ?: ExpenseCategory.OTHER,
-                    amountMinorUnits = amountMinor,
-                    currencyCode = team.currencyCode,
-                    paidByPlayerId = paidByPlayer?.id,
-                    date = DateTimeUtils.parseDate(item.dateStr),
-                    notes = item.notes
-                )
-                val shares = calculateExpenseSharesUseCase.execute(
-                    expenseId = 0L,
-                    totalAmountMinorUnits = amountMinor,
-                    playerIds = playerIds
-                )
-                repository.saveExpenseWithShares(expense, shares)
-                count++
-            }
-            _uiState.value = _uiState.value.copy(statusMessage = "Imported $count expenses")
+            val result = importCsvUseCase.importExpenses(team.id, team.currencyCode, csvContent)
+            _uiState.value = _uiState.value.copy(statusMessage = result.message("expenses (splits are not in the file)"))
         }
     }
 

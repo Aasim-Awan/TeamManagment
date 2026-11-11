@@ -1,5 +1,6 @@
 package com.teamfund.manager.feature.contributions
 
+import com.teamfund.manager.core.common.SaveGuard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 
 data class ContributionsUiState(
     val isLoading: Boolean = true,
@@ -34,6 +36,9 @@ class ContributionsViewModel(
     private val _uiState = MutableStateFlow(ContributionsUiState())
     val uiState: StateFlow<ContributionsUiState> = _uiState.asStateFlow()
 
+    private val saveGuard = SaveGuard()
+    val isSaving: StateFlow<Boolean> = saveGuard.isSaving
+
     init {
         loadContributions()
     }
@@ -42,23 +47,27 @@ class ContributionsViewModel(
         viewModelScope.launch {
             userPreferencesRepository.activeTeamIdFlow
                 .flatMapLatest { activeId -> repository.getActiveTeamFlow(activeId) }
-                .collect { activeTeam ->
+                .collectLatest { activeTeam ->
                     if (activeTeam == null) {
                         _uiState.value = ContributionsUiState(isLoading = false)
-                        return@collect
+                        return@collectLatest
                     }
 
                     val teamId = activeTeam.id
                     combine(
                         repository.getContributionsFlow(teamId),
+                        repository.getAllPlayersFlow(teamId),
                         repository.getActivePlayersFlow(teamId)
-                    ) { contribList, playerList ->
-                        val pMap = playerList.associateBy { it.id }
+                    ) { flows: Array<Any> ->
+                        val contribList = flows[0] as List<com.teamfund.manager.domain.model.Contribution>
+                        val allPlayers = flows[1] as List<Player>
+                        val activePlayers = flows[2] as List<Player>
+                        val pMap = allPlayers.associateBy { it.id }
                         ContributionsUiState(
                             isLoading = false,
                             contributions = contribList,
                             playersMap = pMap,
-                            players = playerList,
+                            players = activePlayers,
                             currencyCode = activeTeam.currencyCode,
                             activeTeamId = teamId
                         )
@@ -76,7 +85,7 @@ class ContributionsViewModel(
         notes: String?,
         onSuccess: () -> Unit
     ) {
-        viewModelScope.launch {
+        saveGuard.launch(viewModelScope) {
             val teamId = _uiState.value.activeTeamId
             if (teamId == 0L || amountMinorUnits <= 0L) return@launch
 

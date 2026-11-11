@@ -60,6 +60,66 @@ class Converters {
     } catch (_: Exception) {
         ContributionPurpose.GENERAL
     }
+
+    @TypeConverter
+    fun fromSettlementAdjustmentKind(value: SettlementAdjustmentKind): String = value.name
+
+    @TypeConverter
+    fun toSettlementAdjustmentKind(value: String): SettlementAdjustmentKind = try {
+        SettlementAdjustmentKind.valueOf(value)
+    } catch (_: Exception) {
+        SettlementAdjustmentKind.PLAYER_TO_TEAM
+    }
+
+    @TypeConverter
+    fun fromMatchPlayerStatus(value: MatchPlayerStatus): String = value.name
+
+    @TypeConverter
+    fun toMatchPlayerStatus(value: String): MatchPlayerStatus = try {
+        MatchPlayerStatus.valueOf(value)
+    } catch (_: Exception) {
+        MatchPlayerStatus.AVAILABLE
+    }
+
+    @TypeConverter
+    fun fromCricketRole(value: CricketRole): String = value.name
+
+    @TypeConverter
+    fun toCricketRole(value: String): CricketRole = try {
+        CricketRole.valueOf(value)
+    } catch (_: Exception) {
+        CricketRole.UNSPECIFIED
+    }
+
+    @TypeConverter
+    fun fromFineReason(value: FineReason): String = value.name
+
+    @TypeConverter
+    fun toFineReason(value: String): FineReason = try {
+        FineReason.valueOf(value)
+    } catch (_: Exception) {
+        FineReason.OTHER
+    }
+
+    @TypeConverter
+    fun fromInventoryCategory(value: InventoryCategory): String = value.name
+
+    @TypeConverter
+    fun toInventoryCategory(value: String): InventoryCategory = try {
+        InventoryCategory.valueOf(value)
+    } catch (_: Exception) {
+        InventoryCategory.OTHER
+    }
+
+    @TypeConverter
+    fun fromDuePeriod(value: DuePeriod): String = value.name
+
+    @TypeConverter
+    fun toDuePeriod(value: String): DuePeriod = try {
+        DuePeriod.valueOf(value)
+    } catch (_: Exception) {
+        DuePeriod.MONTHLY
+    }
 }
 
 @Database(
@@ -71,8 +131,15 @@ class Converters {
         ExpenseShareEntity::class,
         ContributionEntity::class,
         SettlementEntity::class,
+        MatchPlayerEntity::class,
+        SeasonEntity::class,
+        MatchPlayerStatsEntity::class,
+        FineEntity::class,
+        InventoryItemEntity::class,
+        InventoryMovementEntity::class,
+        DueScheduleEntity::class,
     ],
-    version = 4,
+    version = 10,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -84,6 +151,12 @@ abstract class TeamFundDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
     abstract fun contributionDao(): ContributionDao
     abstract fun settlementDao(): SettlementDao
+    abstract fun matchPlayerDao(): MatchPlayerDao
+    abstract fun seasonDao(): SeasonDao
+    abstract fun matchPlayerStatsDao(): MatchPlayerStatsDao
+    abstract fun fineDao(): FineDao
+    abstract fun inventoryDao(): InventoryDao
+    abstract fun dueScheduleDao(): DueScheduleDao
 
     companion object {
         @Volatile
@@ -97,12 +170,7 @@ abstract class TeamFundDatabase : RoomDatabase() {
                     "teamfund_app_db"
                 )
                     .addMigrations(*TeamFundMigrations.ALL)
-                    // Only wipe when upgrading from pre-v3 installs (no migration history).
-                    // From v3 onward, missing migrations fail loudly instead of deleting data.
-                    .fallbackToDestructiveMigrationFrom(
-                        dropAllTables = true,
-                        *TeamFundMigrations.DESTRUCTIVE_FROM_VERSIONS
-                    )
+                    // Never erase financial history when a migration is missing.
                     .build()
                 INSTANCE = instance
                 instance

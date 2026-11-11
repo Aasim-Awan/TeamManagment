@@ -17,6 +17,7 @@ sealed class Screen(val route: String) {
         fun createRoute(playerId: Long) = "player_detail/$playerId"
     }
     object Expenses : Screen("expenses")
+    object AllExpenses : Screen("all_expenses")
     object AddExpense : Screen("add_expense?matchId={matchId}&expenseId={expenseId}") {
         fun createRoute(matchId: Long? = null, expenseId: Long? = null) = buildString {
             append("add_expense")
@@ -39,5 +40,6 @@ sealed class Screen(val route: String) {
     object Settlements : Screen("settlements")
     object Reports : Screen("reports")
     object Settings : Screen("settings")
+    object Kit : Screen("kit")
     object CreateTeam : Screen("create_team")
 }

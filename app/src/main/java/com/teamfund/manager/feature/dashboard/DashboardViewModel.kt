@@ -1,5 +1,6 @@
 package com.teamfund.manager.feature.dashboard
 
+import com.teamfund.manager.core.util.DateTimeUtils
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -31,6 +32,8 @@ data class DashboardUiState(
     val matchStats: MatchStatsSummary = MatchStatsSummary(),
     val upcomingMatch: Match? = null,
     val recentActivities: List<ActivityItem> = emptyList(),
+    /** Sum of all expenses dated in the current calendar month (shown on the Home top card). */
+    val thisMonthExpensesMinorUnits: Long = 0L,
     val currencyCode: String = "USD"
 )
 
@@ -72,7 +75,7 @@ class DashboardViewModel(
                     } else {
                         val teamId = activeTeam.id
                         val financialFlow = combine(
-                            repository.getActivePlayersFlow(teamId),
+                            repository.getAllPlayersFlow(teamId),
                             repository.getContributionsFlow(teamId),
                             repository.getExpensesFlow(teamId)
                         ) { players, contribs, expenses ->
@@ -82,18 +85,24 @@ class DashboardViewModel(
                         val activityFlow = combine(
                             repository.getAllExpenseSharesFlow(teamId),
                             repository.getSettlementsFlow(teamId),
-                            repository.getMatchesFlow(teamId)
-                        ) { shares, settlements, matches ->
-                            Triple(shares, settlements, matches)
+                            repository.getMatchesFlow(teamId),
+                            repository.getFinesForTeamFlow(teamId)
+                        ) { shares, settlements, matches, fines ->
+                            listOf(shares, settlements, matches, fines)
                         }
 
-                        combine(financialFlow, activityFlow) { (players, contribs, expenses), (shares, settlements, matches) ->
+                        combine(financialFlow, activityFlow) { (players, contribs, expenses), activity ->
+                            val shares = activity[0] as List<com.teamfund.manager.domain.model.ExpenseShare>
+                            val settlements = activity[1] as List<com.teamfund.manager.domain.model.Settlement>
+                            val matches = activity[2] as List<com.teamfund.manager.domain.model.Match>
+                            val fines = activity[3] as List<com.teamfund.manager.domain.model.Fine>
                             val playerSummaries = calculatePlayerBalancesUseCase.execute(
                                 players = players,
                                 contributions = contribs,
                                 expenses = expenses,
                                 expenseShares = shares,
-                                settlements = settlements
+                                settlements = settlements,
+                                fines = fines
                             )
 
                             val teamSummary = calculateTeamBalanceUseCase.execute(
@@ -121,6 +130,11 @@ class DashboardViewModel(
                                 .minByOrNull { it.date }
 
                             val playerMap = players.associateBy { it.id }
+
+                            val monthRange = DateTimeUtils.currentMonthRange()
+                            val thisMonthExpenses = expenses
+                                .filter { it.date in monthRange }
+                                .sumOf { it.amountMinorUnits }
 
                             val expActivities = expenses.take(5).map { exp ->
                                 ActivityItem.ExpenseActivity(
@@ -164,6 +178,7 @@ class DashboardViewModel(
                                 matchStats = stats,
                                 upcomingMatch = upcoming,
                                 recentActivities = allActivities,
+                                thisMonthExpensesMinorUnits = thisMonthExpenses,
                                 currencyCode = activeTeam.currencyCode
                             )
                         }

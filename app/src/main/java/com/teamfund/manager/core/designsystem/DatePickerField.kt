@@ -2,6 +2,14 @@ package com.teamfund.manager.core.designsystem
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material3.Icon
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,23 +39,19 @@ fun DatePickerField(
 ) {
     var showPicker by remember { mutableStateOf(false) }
 
-    OutlinedTextField(
+    Box(modifier.fillMaxWidth().testTag(testTag)
+        .clickable(role = Role.Button) { showPicker = true }
+        .semantics { contentDescription = "$label, ${DateTimeUtils.formatAbsoluteDate(selectedDateMillis)}" }) {
+      TeamFundTextField(
         value = DateTimeUtils.formatAbsoluteDate(selectedDateMillis),
         onValueChange = {},
         readOnly = true,
         enabled = false,
         label = { Text(label) },
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag(testTag)
-            .clickable { showPicker = true },
-        colors = OutlinedTextFieldDefaults.colors(
-            disabledTextColor = MaterialTheme.colorScheme.onSurface,
-            disabledBorderColor = MaterialTheme.colorScheme.outline,
-            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    )
+        trailingIcon = { Icon(Icons.Outlined.CalendarMonth, contentDescription = null) },
+        modifier = Modifier.fillMaxWidth().clearAndSetSemantics { }
+      )
+    }
 
     if (showPicker) {
         val pickerState = rememberDatePickerState(

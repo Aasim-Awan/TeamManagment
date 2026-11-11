@@ -1,19 +1,34 @@
 package com.teamfund.manager.data.mapper
 
 import com.teamfund.manager.data.local.entity.ContributionEntity
+import com.teamfund.manager.data.local.entity.DueScheduleEntity
 import com.teamfund.manager.data.local.entity.ExpenseEntity
 import com.teamfund.manager.data.local.entity.ExpenseShareEntity
+import com.teamfund.manager.data.local.entity.FineEntity
+import com.teamfund.manager.data.local.entity.InventoryItemEntity
+import com.teamfund.manager.data.local.entity.InventoryMovementEntity
 import com.teamfund.manager.data.local.entity.MatchEntity
+import com.teamfund.manager.data.local.entity.MatchPlayerEntity
+import com.teamfund.manager.data.local.entity.MatchPlayerStatsEntity
 import com.teamfund.manager.data.local.entity.PlayerEntity
+import com.teamfund.manager.data.local.entity.SeasonEntity
 import com.teamfund.manager.data.local.entity.SettlementEntity
 import com.teamfund.manager.data.local.entity.TeamEntity
 import com.teamfund.manager.data.local.relation.ExpenseWithShares
 import com.teamfund.manager.domain.model.Contribution
+import com.teamfund.manager.domain.model.DueSchedule
 import com.teamfund.manager.domain.model.Expense
 import com.teamfund.manager.domain.model.ExpenseShare
+import com.teamfund.manager.domain.model.Fine
+import com.teamfund.manager.domain.model.InventoryItem
+import com.teamfund.manager.domain.model.InventoryMovement
 import com.teamfund.manager.domain.model.Match
+import com.teamfund.manager.domain.model.MatchPlayer
+import com.teamfund.manager.domain.model.MatchPlayerStats
 import com.teamfund.manager.domain.model.Player
+import com.teamfund.manager.domain.model.Season
 import com.teamfund.manager.domain.model.Settlement
+import com.teamfund.manager.domain.model.SettlementAdjustmentKind
 import com.teamfund.manager.domain.model.Team
 
 fun TeamEntity.toDomain() = Team(
@@ -43,6 +58,7 @@ fun PlayerEntity.toDomain() = Player(
     teamId = teamId,
     name = name,
     role = role,
+    cricketRole = cricketRole,
     phoneNumber = phoneNumber,
     avatarUri = avatarUri,
     isActive = isActive,
@@ -56,6 +72,7 @@ fun Player.toEntity() = PlayerEntity(
     teamId = teamId,
     name = name,
     role = role,
+    cricketRole = cricketRole,
     phoneNumber = phoneNumber,
     avatarUri = avatarUri,
     isActive = isActive,
@@ -76,6 +93,9 @@ fun MatchEntity.toDomain() = Match(
     overs = overs,
     tossWinner = tossWinner,
     playerOfTheMatchId = playerOfTheMatchId,
+    seasonId = seasonId,
+    matchFeeMinorUnits = matchFeeMinorUnits,
+    groundFeeMinorUnits = groundFeeMinorUnits,
     notes = notes,
     createdAt = createdAt,
     updatedAt = updatedAt
@@ -93,6 +113,9 @@ fun Match.toEntity() = MatchEntity(
     overs = overs,
     tossWinner = tossWinner,
     playerOfTheMatchId = playerOfTheMatchId,
+    seasonId = seasonId,
+    matchFeeMinorUnits = matchFeeMinorUnits,
+    groundFeeMinorUnits = groundFeeMinorUnits,
     notes = notes,
     createdAt = createdAt,
     updatedAt = updatedAt
@@ -181,6 +204,7 @@ fun SettlementEntity.toDomain() = Settlement(
     matchId = matchId,
     expenseId = expenseId,
     amountMinorUnits = amountMinorUnits,
+    adjustmentKind = adjustmentKind,
     date = date,
     note = note,
     createdAt = createdAt
@@ -194,7 +218,154 @@ fun Settlement.toEntity() = SettlementEntity(
     matchId = matchId,
     expenseId = expenseId,
     amountMinorUnits = amountMinorUnits,
+    adjustmentKind = adjustmentKind,
     date = date,
     note = note,
     createdAt = createdAt
+)
+
+fun settlementKindFor(fromPlayerId: Long): SettlementAdjustmentKind =
+    if (fromPlayerId == 0L) SettlementAdjustmentKind.TEAM_TO_PLAYER
+    else SettlementAdjustmentKind.PLAYER_TO_TEAM
+
+fun MatchPlayerEntity.toDomain() = MatchPlayer(
+    id = id,
+    matchId = matchId,
+    playerId = playerId,
+    status = status,
+    createdAt = createdAt
+)
+
+fun MatchPlayer.toEntity() = MatchPlayerEntity(
+    id = id,
+    matchId = matchId,
+    playerId = playerId,
+    status = status,
+    createdAt = createdAt
+)
+
+fun SeasonEntity.toDomain() = Season(
+    id = id,
+    teamId = teamId,
+    name = name,
+    startDate = startDate,
+    endDate = endDate,
+    isActive = isActive
+)
+
+fun Season.toEntity() = SeasonEntity(
+    id = id,
+    teamId = teamId,
+    name = name,
+    startDate = startDate,
+    endDate = endDate,
+    isActive = isActive
+)
+
+fun MatchPlayerStatsEntity.toDomain() = MatchPlayerStats(
+    id = id,
+    matchId = matchId,
+    playerId = playerId,
+    runs = runs,
+    balls = balls,
+    wickets = wickets,
+    oversBowled = oversBowled,
+    catches = catches,
+    isPlayerOfMatch = isPlayerOfMatch
+)
+
+fun MatchPlayerStats.toEntity() = MatchPlayerStatsEntity(
+    id = id,
+    matchId = matchId,
+    playerId = playerId,
+    runs = runs,
+    balls = balls,
+    wickets = wickets,
+    oversBowled = oversBowled,
+    catches = catches,
+    isPlayerOfMatch = isPlayerOfMatch
+)
+
+fun FineEntity.toDomain() = Fine(
+    id = id,
+    teamId = teamId,
+    playerId = playerId,
+    matchId = matchId,
+    amountMinorUnits = amountMinorUnits,
+    reason = reason,
+    date = date,
+    note = note,
+    settlementId = settlementId,
+    createdAt = createdAt
+)
+
+fun Fine.toEntity() = FineEntity(
+    id = id,
+    teamId = teamId,
+    playerId = playerId,
+    matchId = matchId,
+    amountMinorUnits = amountMinorUnits,
+    reason = reason,
+    date = date,
+    note = note,
+    settlementId = settlementId,
+    createdAt = createdAt
+)
+
+fun InventoryItemEntity.toDomain() = InventoryItem(
+    id = id,
+    teamId = teamId,
+    name = name,
+    category = category,
+    quantity = quantity,
+    notes = notes
+)
+
+fun InventoryItem.toEntity() = InventoryItemEntity(
+    id = id,
+    teamId = teamId,
+    name = name,
+    category = category,
+    quantity = quantity,
+    notes = notes
+)
+
+fun InventoryMovementEntity.toDomain() = InventoryMovement(
+    id = id,
+    itemId = itemId,
+    delta = delta,
+    matchId = matchId,
+    playerId = playerId,
+    date = date,
+    note = note
+)
+
+fun InventoryMovement.toEntity() = InventoryMovementEntity(
+    id = id,
+    itemId = itemId,
+    delta = delta,
+    matchId = matchId,
+    playerId = playerId,
+    date = date,
+    note = note
+)
+
+fun DueScheduleEntity.toDomain() = DueSchedule(
+    id = id,
+    teamId = teamId,
+    name = name,
+    amountMinorUnits = amountMinorUnits,
+    period = period,
+    nextDueDate = nextDueDate,
+    isActive = isActive
+)
+
+fun DueSchedule.toEntity() = DueScheduleEntity(
+    id = id,
+    teamId = teamId,
+    name = name,
+    amountMinorUnits = amountMinorUnits,
+    period = period,
+    nextDueDate = nextDueDate,
+    isActive = isActive
 )

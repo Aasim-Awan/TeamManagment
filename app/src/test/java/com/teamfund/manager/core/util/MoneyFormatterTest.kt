@@ -33,4 +33,18 @@ class MoneyFormatterTest {
         val minor = MoneyFormatter.toMinorUnits("123.45")
         assertEquals("123.45", MoneyFormatter.fromMinorUnits(minor))
     }
+
+    @Test
+    fun toMinorUnits_acceptsCommaDecimal() {
+        assertEquals(1250L, MoneyFormatter.toMinorUnits("12,50"))
+        assertEquals(1250L, MoneyFormatter.toMinorUnits("12,5"))
+        assertEquals(123450L, MoneyFormatter.toMinorUnits("1.234,50"))
+    }
+
+    @Test
+    fun toMinorUnits_keepsThousandsSeparators() {
+        assertEquals(100000L, MoneyFormatter.toMinorUnits("1,000"))
+        assertEquals(123450L, MoneyFormatter.toMinorUnits("1,234.50"))
+        assertEquals(100000000L, MoneyFormatter.toMinorUnits("1,000,000"))
+    }
 }

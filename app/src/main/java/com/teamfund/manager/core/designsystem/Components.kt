@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
@@ -51,6 +53,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
+import com.teamfund.manager.R
 import com.teamfund.manager.core.util.DateTimeUtils
 import com.teamfund.manager.core.util.MoneyFormatter
 import com.teamfund.manager.domain.model.Contribution
@@ -138,7 +142,7 @@ fun TeamFundTopBar(
                     text = title,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -165,10 +169,10 @@ fun TeamFundTopBar(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.SportsCricket,
+                        painter = painterResource(R.drawable.ic_launcher_monochrome),
                         contentDescription = "App Logo",
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(36.dp)
                     )
                 }
             }
@@ -201,7 +205,7 @@ fun TeamFundTopBar(
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.background
         )
     )
 }
@@ -212,7 +216,10 @@ fun TeamBalanceCard(
     totalMoneyInMinorUnits: Long,
     totalMoneyOutMinorUnits: Long,
     currencyCode: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    moneyInLabel: String = "Money In",
+    moneyOutLabel: String = "Money Out",
+    onAddContribution: (() -> Unit)? = null
 ) {
     Card(
         modifier = modifier
@@ -220,19 +227,18 @@ fun TeamBalanceCard(
             .testTag("team_balance_card"),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primary
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(20.dp)
         ) {
             Text(
-                text = "TEAM BALANCE",
+                text = "Available team fund",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-                letterSpacing = 1.sp
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(6.dp))
             Row(
@@ -242,13 +248,13 @@ fun TeamBalanceCard(
                     minorUnits = balanceMinorUnits,
                     currencyCode = currencyCode,
                     style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Icon(
                     imageVector = Icons.Default.TrendingUp,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -264,14 +270,14 @@ fun TeamBalanceCard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.15f))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
                         .padding(12.dp)
                 ) {
                     Column {
                         Text(
-                            text = "Money In",
+                            text = moneyInLabel,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         MoneyText(
@@ -279,7 +285,7 @@ fun TeamBalanceCard(
                             currencyCode = currencyCode,
                             includeSign = true,
                             style = MaterialTheme.typography.titleMedium,
-                            color = Color(0xFFA3F69C)
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                 }
@@ -289,23 +295,29 @@ fun TeamBalanceCard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.15f))
+                        .background(MaterialTheme.colorScheme.surfaceContainer)
                         .padding(12.dp)
                 ) {
                     Column {
                         Text(
-                            text = "Money Out",
+                            text = moneyOutLabel,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         MoneyText(
                             minorUnits = -totalMoneyOutMinorUnits,
                             currencyCode = currencyCode,
                             style = MaterialTheme.typography.titleMedium,
-                            color = Color(0xFFFFB4AB)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
+                }
+            }
+            onAddContribution?.let { onClick ->
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = CircleShape) {
+                    Text("Record contribution")
                 }
             }
         }
@@ -329,9 +341,9 @@ fun QuickActionButton(
             .testTag(testTag)
     ) {
         Surface(
-            shape = RoundedCornerShape(18.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            shadowElevation = 2.dp,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            shadowElevation = 0.dp,
             modifier = Modifier.size(56.dp)
         ) {
             Box(
@@ -371,7 +383,8 @@ fun StatCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -386,18 +399,127 @@ fun StatCard(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = valueColor
+                color = valueColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
             if (subtitle != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun SectionHeading(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.SemiBold,
+        modifier = modifier
+    )
+}
+
+@Composable
+fun CompactMetricRow(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+fun LedgerListItem(
+    title: String,
+    subtitle: String?,
+    amountMinorUnits: Long,
+    currencyCode: String,
+    includeSign: Boolean = false,
+    amountColor: Color = MaterialTheme.colorScheme.onSurface,
+    onDelete: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        MoneyText(
+            minorUnits = amountMinorUnits,
+            currencyCode = currencyCode,
+            includeSign = includeSign,
+            color = amountColor,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+        if (onDelete != null) {
+            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Remove",
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        } else {
+            Spacer(modifier = Modifier.width(36.dp))
         }
     }
 }
@@ -424,7 +546,8 @@ fun MatchCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -491,7 +614,8 @@ fun ExpenseCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -557,7 +681,8 @@ fun ContributionCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -623,7 +748,8 @@ fun PlayerCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -648,47 +774,57 @@ fun PlayerCard(
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = playerSummary.player.name,
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!playerSummary.player.isActive) {
                     Text(
-                        text = playerSummary.player.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = "Inactive",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ) {
-                        Text(
-                            text = playerSummary.player.role.displayName,
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
+                Text(text = playerSummary.player.role.displayName,
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = playerSummary.statusText,
+                playerSummary.balanceActionLabel(currencyCode)?.let { actionLabel ->
+                    Text(
+                        text = actionLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = when {
+                            playerSummary.positionMinorUnits > 0 -> MaterialTheme.colorScheme.primary
+                            playerSummary.positionMinorUnits < 0 -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.outline
+                        }
+                    )
+                } ?: Text(
+                    text = "Settled",
                     style = MaterialTheme.typography.bodySmall,
-                    color = when {
-                        playerSummary.netBalanceMinorUnits > 0 -> MaterialTheme.colorScheme.primary
-                        playerSummary.netBalanceMinorUnits < 0 -> MaterialTheme.colorScheme.error
-                        else -> MaterialTheme.colorScheme.outline
-                    }
+                    color = MaterialTheme.colorScheme.outline
                 )
+                playerSummary.sharesBreakdownLabel(currencyCode)?.let { breakdown ->
+                    Text(
+                        text = breakdown,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             MoneyText(
-                minorUnits = playerSummary.netBalanceMinorUnits,
+                minorUnits = playerSummary.positionMinorUnits,
                 currencyCode = currencyCode,
                 includeSign = true,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = when {
-                    playerSummary.netBalanceMinorUnits > 0 -> MaterialTheme.colorScheme.primary
-                    playerSummary.netBalanceMinorUnits < 0 -> MaterialTheme.colorScheme.error
+                    playerSummary.positionMinorUnits > 0 -> MaterialTheme.colorScheme.primary
+                    playerSummary.positionMinorUnits < 0 -> MaterialTheme.colorScheme.error
                     else -> MaterialTheme.colorScheme.onSurface
                 }
             )
@@ -722,7 +858,7 @@ fun BalanceStatusCard(
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(
-                            if (playerSummary.netBalanceMinorUnits < 0) MaterialTheme.colorScheme.errorContainer
+                            if (playerSummary.positionMinorUnits < 0) MaterialTheme.colorScheme.errorContainer
                             else MaterialTheme.colorScheme.primaryContainer
                         ),
                     contentAlignment = Alignment.Center
@@ -730,7 +866,7 @@ fun BalanceStatusCard(
                     Text(
                         text = playerSummary.player.name.take(2).uppercase(),
                         fontWeight = FontWeight.Bold,
-                        color = if (playerSummary.netBalanceMinorUnits < 0) MaterialTheme.colorScheme.onErrorContainer
+                        color = if (playerSummary.positionMinorUnits < 0) MaterialTheme.colorScheme.onErrorContainer
                         else MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
@@ -742,16 +878,21 @@ fun BalanceStatusCard(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    
-                    if (playerSummary.unpaidExpenseSharesMinorUnits > 0) {
+                    if (!playerSummary.player.isActive) {
                         Text(
-                            text = "Unpaid Dues: ${MoneyFormatter.format(playerSummary.unpaidExpenseSharesMinorUnits, currencyCode)}",
+                            text = "Inactive",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error,
+                            color = MaterialTheme.colorScheme.outline,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    
+                    playerSummary.sharesBreakdownLabel(currencyCode)?.let { breakdown ->
+                        Text(
+                            text = breakdown,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Text(
                         text = "Total Contributed: ${MoneyFormatter.format(playerSummary.totalContributionsMinorUnits, currencyCode)}",
                         style = MaterialTheme.typography.labelSmall,
@@ -760,23 +901,31 @@ fun BalanceStatusCard(
                 }
 
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Net Standing", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    val actionLabel = when {
+                        playerSummary.positionMinorUnits > 0 -> "Pay player"
+                        playerSummary.positionMinorUnits < 0 -> "Collect"
+                        else -> "Net"
+                    }
+                    Text(actionLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     MoneyText(
-                        minorUnits = playerSummary.netBalanceMinorUnits,
+                        minorUnits = when {
+                            playerSummary.positionMinorUnits > 0 -> playerSummary.amountTeamShouldPayMinorUnits
+                            playerSummary.positionMinorUnits < 0 -> playerSummary.amountTeamShouldCollectMinorUnits
+                            else -> 0L
+                        },
                         currencyCode = currencyCode,
-                        includeSign = true,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = when {
-                            playerSummary.netBalanceMinorUnits > 0 -> MaterialTheme.colorScheme.primary
-                            playerSummary.netBalanceMinorUnits < 0 -> MaterialTheme.colorScheme.error
+                            playerSummary.positionMinorUnits > 0 -> MaterialTheme.colorScheme.primary
+                            playerSummary.positionMinorUnits < 0 -> MaterialTheme.colorScheme.error
                             else -> MaterialTheme.colorScheme.onSurface
                         }
                     )
                 }
             }
 
-            if (playerSummary.netBalanceMinorUnits != 0L || playerSummary.unpaidExpenseSharesMinorUnits > 0L) {
+            if (playerSummary.positionMinorUnits != 0L) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -785,13 +934,18 @@ fun BalanceStatusCard(
                     Button(
                         onClick = onSettleClick,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (playerSummary.unpaidExpenseSharesMinorUnits > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            containerColor = if (playerSummary.positionMinorUnits < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                         ),
                         modifier = Modifier.testTag("settle_button_${playerSummary.player.id}")
                     ) {
                         Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = if (playerSummary.unpaidExpenseSharesMinorUnits > 0) "Pay Dues" else if (playerSummary.netBalanceMinorUnits < 0) "Mark Settled" else "Reimburse Player")
+                        Text(
+                            text = when {
+                                playerSummary.positionMinorUnits < 0 -> "Settle"
+                                else -> "Pay player"
+                            }
+                        )
                     }
                 }
             }
@@ -825,11 +979,11 @@ fun StatusChip(
     modifier: Modifier = Modifier
 ) {
     val (bgColor, textColor, text) = when (result) {
-        MatchResult.WON -> Triple(Color(0xFF2E7D32).copy(alpha = 0.15f), Color(0xFF0D631B), "WON")
-        MatchResult.LOST -> Triple(Color(0xFFBA1A1A).copy(alpha = 0.15f), Color(0xFFBA1A1A), "LOST")
-        MatchResult.DRAW -> Triple(Color.Gray.copy(alpha = 0.15f), Color.DarkGray, "DRAW")
-        MatchResult.NO_RESULT -> Triple(Color.Gray.copy(alpha = 0.15f), Color.DarkGray, "NO RESULT")
-        MatchResult.UPCOMING -> Triple(Color(0xFF4C56AF).copy(alpha = 0.15f), Color(0xFF4C56AF), "UPCOMING")
+        MatchResult.WON -> Triple(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, "WON")
+        MatchResult.LOST -> Triple(MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer, "LOST")
+        MatchResult.DRAW -> Triple(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.colorScheme.onSurface, "DRAW")
+        MatchResult.NO_RESULT -> Triple(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.colorScheme.onSurface, "NO RESULT")
+        MatchResult.UPCOMING -> Triple(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, "UPCOMING")
     }
 
     Surface(

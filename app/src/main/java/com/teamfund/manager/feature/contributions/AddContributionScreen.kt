@@ -1,5 +1,13 @@
 package com.teamfund.manager.feature.contributions
 
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+
+import com.teamfund.manager.core.designsystem.TeamFundTextField
+import com.teamfund.manager.core.designsystem.TeamFundButton
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -40,14 +48,15 @@ fun AddContributionScreen(
     onBackClick: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
 
-    var selectedPlayerId by remember { mutableStateOf(preselectedPlayerId) }
-    var amountText by remember { mutableStateOf("") }
-    var selectedPurpose by remember { mutableStateOf(ContributionPurpose.MONTHLY) }
-    var notes by remember { mutableStateOf("") }
+    var selectedPlayerId by rememberSaveable { mutableStateOf(preselectedPlayerId) }
+    var amountText by rememberSaveable { mutableStateOf("") }
+    var selectedPurpose by rememberSaveable { mutableStateOf(ContributionPurpose.MONTHLY) }
+    var notes by rememberSaveable { mutableStateOf("") }
 
-    var playerExpanded by remember { mutableStateOf(false) }
-    var purposeExpanded by remember { mutableStateOf(false) }
+    var playerExpanded by rememberSaveable { mutableStateOf(false) }
+    var purposeExpanded by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(state.players) {
         if (selectedPlayerId == null && state.players.isNotEmpty()) {
@@ -68,6 +77,8 @@ fun AddContributionScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -76,7 +87,7 @@ fun AddContributionScreen(
             // Player Selector
             ExposedDropdownMenuBox(expanded = playerExpanded, onExpandedChange = { playerExpanded = !playerExpanded }) {
                 val selectedPlayerName = state.players.find { it.id == selectedPlayerId }?.name ?: "Select Member *"
-                OutlinedTextField(
+                TeamFundTextField(
                     value = selectedPlayerName,
                     onValueChange = {},
                     readOnly = true,
@@ -100,7 +111,7 @@ fun AddContributionScreen(
                 }
             }
 
-            OutlinedTextField(
+            TeamFundTextField(
                 value = amountText,
                 onValueChange = { amountText = it },
                 label = { Text("Amount (${state.currencyCode}) *") },
@@ -114,7 +125,7 @@ fun AddContributionScreen(
 
             // Purpose Selector
             ExposedDropdownMenuBox(expanded = purposeExpanded, onExpandedChange = { purposeExpanded = !purposeExpanded }) {
-                OutlinedTextField(
+                TeamFundTextField(
                     value = selectedPurpose.displayName,
                     onValueChange = {},
                     readOnly = true,
@@ -137,7 +148,7 @@ fun AddContributionScreen(
                 }
             }
 
-            OutlinedTextField(
+            TeamFundTextField(
                 value = notes,
                 onValueChange = { notes = it },
                 label = { Text("Notes (Optional)") },
@@ -150,7 +161,7 @@ fun AddContributionScreen(
 
             val amountMinor = com.teamfund.manager.core.util.MoneyFormatter.toMinorUnits(amountText)
 
-            Button(
+            TeamFundButton(
                 onClick = {
                     if (selectedPlayerId != null && amountMinor > 0L) {
                         viewModel.addContribution(
@@ -166,7 +177,7 @@ fun AddContributionScreen(
                     .fillMaxWidth()
                     .height(52.dp)
                     .testTag("save_contribution_button"),
-                enabled = selectedPlayerId != null && amountMinor > 0L
+                enabled = selectedPlayerId != null && amountMinor > 0L && !isSaving
             ) {
                 Text("Record Contribution")
             }

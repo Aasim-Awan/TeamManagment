@@ -41,3 +41,53 @@ enum class ContributionPurpose(val displayName: String) {
     GENERAL("General Pool"),
     OTHER("Other")
 }
+
+enum class SettlementAdjustmentKind(val displayName: String) {
+    PLAYER_TO_TEAM("Player pays team"),
+    TEAM_TO_PLAYER("Team pays player")
+}
+
+enum class MatchPlayerStatus(val displayName: String) {
+    SELECTED("Playing XI"),
+    AVAILABLE("Available"),
+    UNAVAILABLE("Unavailable"),
+    NO_SHOW("No show")
+}
+
+enum class CricketRole(val displayName: String) {
+    BATTER("Batter"),
+    BOWLER("Bowler"),
+    WICKET_KEEPER("Wicket keeper"),
+    ALL_ROUNDER("All-rounder"),
+    UNSPECIFIED("Unspecified")
+}
+
+enum class FineReason(val displayName: String) {
+    LATE("Late"),
+    NO_SHOW("No show"),
+    OTHER("Other"),
+    MATCH_FEE("Match fee"),
+    DUES("Monthly dues"),
+    CHARGE("Charge")
+}
+
+enum class PlayerSafeDeleteOutcome {
+    HARD_DELETED,
+    DEACTIVATED_HAS_HISTORY
+}
+
+enum class SettleAdjustmentMode {
+    PLAYER_PAID,
+    PLAYER_OWES,
+    TEAM_PAID_PLAYER
+}
+
+enum class InventoryCategory(val displayName: String) {
+    BALL("Ball"),
+    KIT("Kit"),
+    OTHER("Other")
+}
+
+enum class DuePeriod(val displayName: String) {
+    MONTHLY("Monthly")
+}

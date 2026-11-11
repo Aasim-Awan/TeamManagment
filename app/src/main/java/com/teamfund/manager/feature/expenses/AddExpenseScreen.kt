@@ -1,5 +1,11 @@
 package com.teamfund.manager.feature.expenses
 
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.runtime.saveable.rememberSaveable
+
+import com.teamfund.manager.core.designsystem.TeamFundTextField
+import com.teamfund.manager.core.designsystem.TeamFundButton
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -43,26 +49,38 @@ fun AddExpenseScreen(
     onBackClick: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
 
-    var title by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(ExpenseCategory.GROUND) }
-    var amountText by remember { mutableStateOf("") }
-    var paidByPlayerId by remember { mutableStateOf<Long?>(null) } // null = Team Fund
-    var selectedMatchId by remember { mutableStateOf<Long?>(matchId) }
-    var notes by remember { mutableStateOf("") }
-    var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    val splitPlayers = remember(state.allPlayers, state.activePlayers, expenseId, state.expenses) {
+        if (expenseId != null) {
+            val onExpense = state.expenses.find { it.id == expenseId }
+                ?.shares?.map { it.playerId }?.toSet().orEmpty()
+            state.allPlayers.filter { it.isActive || onExpense.contains(it.id) }
+        } else {
+            state.activePlayers
+        }
+    }
+    val payerPlayers = state.activePlayers
+
+    var title by rememberSaveable { mutableStateOf("") }
+    var selectedCategory by rememberSaveable { mutableStateOf(ExpenseCategory.GROUND) }
+    var amountText by rememberSaveable { mutableStateOf("") }
+    var paidByPlayerId by rememberSaveable { mutableStateOf<Long?>(null) } // null = Team Fund
+    var selectedMatchId by rememberSaveable { mutableStateOf<Long?>(matchId) }
+    var notes by rememberSaveable { mutableStateOf("") }
+    var selectedDateMillis by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
 
     val selectedPlayerIds = remember { mutableStateListOf<Long>() }
-    var perPersonAmountText by remember { mutableStateOf("") }
-    var isManualSplit by remember { mutableStateOf(false) }
+    var perPersonAmountText by rememberSaveable { mutableStateOf("") }
+    var isManualSplit by rememberSaveable { mutableStateOf(false) }
 
-    var catExpanded by remember { mutableStateOf(false) }
-    var payerExpanded by remember { mutableStateOf(false) }
-    var matchExpanded by remember { mutableStateOf(false) }
+    var catExpanded by rememberSaveable { mutableStateOf(false) }
+    var payerExpanded by rememberSaveable { mutableStateOf(false) }
+    var matchExpanded by rememberSaveable { mutableStateOf(false) }
 
-    var showAddPlayerDialog by remember { mutableStateOf(false) }
-    var pendingSelectPlayerId by remember { mutableStateOf<Long?>(null) }
-    var didInitialPlayerSelect by remember { mutableStateOf(false) }
+    var showAddPlayerDialog by rememberSaveable { mutableStateOf(false) }
+    var pendingSelectPlayerId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var didInitialPlayerSelect by rememberSaveable { mutableStateOf(false) }
 
     // Load existing expense if editing
     LaunchedEffect(expenseId, state.expenses) {
@@ -98,17 +116,17 @@ fun AddExpenseScreen(
         }
     }
 
-    LaunchedEffect(state.players) {
-        if (expenseId == null && !didInitialPlayerSelect && state.players.isNotEmpty()) {
+    LaunchedEffect(state.activePlayers) {
+        if (expenseId == null && !didInitialPlayerSelect && state.activePlayers.isNotEmpty()) {
             selectedPlayerIds.clear()
-            selectedPlayerIds.addAll(state.players.map { it.id })
+            selectedPlayerIds.addAll(state.activePlayers.map { it.id })
             didInitialPlayerSelect = true
         }
     }
 
-    LaunchedEffect(pendingSelectPlayerId, state.players) {
+    LaunchedEffect(pendingSelectPlayerId, state.allPlayers) {
         val newId = pendingSelectPlayerId ?: return@LaunchedEffect
-        if (state.players.any { it.id == newId }) {
+        if (state.allPlayers.any { it.id == newId }) {
             if (!selectedPlayerIds.contains(newId)) {
                 selectedPlayerIds.add(newId)
             }
@@ -146,13 +164,14 @@ fun AddExpenseScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .imePadding()
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(text = "Expense Details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
-            OutlinedTextField(
+            TeamFundTextField(
                 value = title,
                 onValueChange = { title = it },
                 label = { Text("Expense Title *") },
@@ -163,7 +182,7 @@ fun AddExpenseScreen(
                 singleLine = true
             )
 
-            OutlinedTextField(
+            TeamFundTextField(
                 value = amountText,
                 onValueChange = { amountText = it },
                 label = { Text("Amount (${state.currencyCode}) *") },
@@ -184,7 +203,7 @@ fun AddExpenseScreen(
 
             // Category Selector
             ExposedDropdownMenuBox(expanded = catExpanded, onExpandedChange = { catExpanded = !catExpanded }) {
-                OutlinedTextField(
+                TeamFundTextField(
                     value = selectedCategory.displayName,
                     onValueChange = {},
                     readOnly = true,
@@ -207,9 +226,9 @@ fun AddExpenseScreen(
             // Paid By Selector
             ExposedDropdownMenuBox(expanded = payerExpanded, onExpandedChange = { payerExpanded = !payerExpanded }) {
                 val payerName = if (paidByPlayerId == null) "Paid directly from Team Fund"
-                else state.players.find { it.id == paidByPlayerId }?.name ?: "Member"
+                else payerPlayers.find { it.id == paidByPlayerId }?.name ?: "Member"
 
-                OutlinedTextField(
+                TeamFundTextField(
                     value = payerName,
                     onValueChange = {},
                     readOnly = true,
@@ -224,7 +243,7 @@ fun AddExpenseScreen(
                         text = { Text("Team Fund Pool") },
                         onClick = { paidByPlayerId = null; payerExpanded = false }
                     )
-                    state.players.forEach { p ->
+                    payerPlayers.forEach { p ->
                         DropdownMenuItem(
                             text = { Text("${p.name} (Player)") },
                             onClick = { paidByPlayerId = p.id; payerExpanded = false }
@@ -245,7 +264,7 @@ fun AddExpenseScreen(
                 val matchName = if (selectedMatchId == null) "General Team Expense (No Match)"
                 else state.matches.find { it.id == selectedMatchId }?.let { "vs ${it.opponentName}" } ?: "Match"
 
-                OutlinedTextField(
+                TeamFundTextField(
                     value = matchName,
                     onValueChange = {},
                     readOnly = true,
@@ -280,22 +299,28 @@ fun AddExpenseScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Split Among Players (${selectedPlayerIds.size} selected)",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Split among players",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${selectedPlayerIds.size} selected",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Manual", style = MaterialTheme.typography.labelSmall)
                             Switch(
                                 checked = isManualSplit,
-                                onCheckedChange = { isManualSplit = it },
-                                modifier = Modifier.scale(0.7f)
+                                onCheckedChange = { isManualSplit = it }
                             )
                         }
                     }
 
-                    if (state.players.isNotEmpty()) {
+                    if (splitPlayers.isNotEmpty()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -303,7 +328,7 @@ fun AddExpenseScreen(
                             TextButton(
                                 onClick = {
                                     selectedPlayerIds.clear()
-                                    selectedPlayerIds.addAll(state.players.map { it.id })
+                                    selectedPlayerIds.addAll(splitPlayers.map { it.id })
                                 },
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                             ) {
@@ -326,7 +351,7 @@ fun AddExpenseScreen(
                         }
                     }
 
-                    if (state.players.isEmpty()) {
+                    if (splitPlayers.isEmpty()) {
                         Text(
                             text = "No players on roster yet. Add a player to split this expense.",
                             style = MaterialTheme.typography.bodySmall,
@@ -334,7 +359,7 @@ fun AddExpenseScreen(
                         )
                     } else {
                         if (isManualSplit) {
-                            OutlinedTextField(
+                            TeamFundTextField(
                                 value = perPersonAmountText,
                                 onValueChange = { perPersonAmountText = it },
                                 label = { Text("Share Amount Per Person") },
@@ -346,7 +371,7 @@ fun AddExpenseScreen(
                             )
                         }
 
-                        state.players.forEach { player ->
+                        splitPlayers.forEach { player ->
                             val isChecked = selectedPlayerIds.contains(player.id)
                             Row(
                                 modifier = Modifier
@@ -363,8 +388,13 @@ fun AddExpenseScreen(
                                     modifier = Modifier.scale(0.8f)
                                 )
                                 Text(
-                                    text = player.name,
+                                    text = if (!player.isActive) "${player.name} (inactive)" else player.name,
                                     style = MaterialTheme.typography.bodyMedium,
+                                    color = if (!player.isActive) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -377,7 +407,7 @@ fun AddExpenseScreen(
                     } else {
                         if (selectedPlayerIds.isNotEmpty()) totalAmountMinor else 0L
                     }
-                    val remainingMinor = (totalAmountMinor - allocatedMinor).coerceAtLeast(0L)
+                    val remainingMinor = totalAmountMinor - allocatedMinor
 
                     if (totalAmountMinor > 0L) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -416,7 +446,7 @@ fun AddExpenseScreen(
                 }
             }
 
-            OutlinedTextField(
+            TeamFundTextField(
                 value = notes,
                 onValueChange = { notes = it },
                 label = { Text("Notes") },
@@ -426,7 +456,10 @@ fun AddExpenseScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
+            val isOverAllocated = isManualSplit &&
+                selectedPlayerIds.size * MoneyFormatter.toMinorUnits(perPersonAmountText) > MoneyFormatter.toMinorUnits(amountText)
+
+            TeamFundButton(
                 onClick = {
                     val amountMinor = MoneyFormatter.toMinorUnits(amountText)
                     val manualAmounts = if (isManualSplit) {
@@ -454,7 +487,7 @@ fun AddExpenseScreen(
                     .fillMaxWidth()
                     .height(52.dp)
                     .testTag("save_expense_button"),
-                enabled = title.isNotBlank() && MoneyFormatter.toMinorUnits(amountText) > 0L
+                enabled = title.isNotBlank() && MoneyFormatter.toMinorUnits(amountText) > 0L && !isOverAllocated && !isSaving
             ) {
                 Text(if (expenseId == null) "Save Expense" else "Update Expense")
             }
@@ -468,16 +501,16 @@ private fun QuickAddPlayerDialog(
     onDismiss: () -> Unit,
     onConfirm: (name: String, role: PlayerRole) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var selectedRole by remember { mutableStateOf(PlayerRole.PLAYER) }
-    var roleExpanded by remember { mutableStateOf(false) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var selectedRole by rememberSaveable { mutableStateOf(PlayerRole.PLAYER) }
+    var roleExpanded by rememberSaveable { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add Player") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
+                TeamFundTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Player Name *") },
@@ -491,7 +524,7 @@ private fun QuickAddPlayerDialog(
                     expanded = roleExpanded,
                     onExpandedChange = { roleExpanded = !roleExpanded }
                 ) {
-                    OutlinedTextField(
+                    TeamFundTextField(
                         value = selectedRole.displayName,
                         onValueChange = {},
                         readOnly = true,

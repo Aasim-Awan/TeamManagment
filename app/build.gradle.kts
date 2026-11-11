@@ -1,12 +1,8 @@
-import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
-
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
-  alias(libs.plugins.secrets)
-  alias(libs.plugins.google.services)
   id("androidx.room") version "2.7.0"
 }
 
@@ -21,6 +17,13 @@ android {
     versionCode = 1
     versionName = "1.0"
 
+    // Public release metadata. Keep unset until the destination is published and verified.
+    fun publicValue(name: String): String = providers.gradleProperty(name).orNull
+      ?.replace("\\", "\\\\")?.replace("\"", "\\\"") ?: ""
+    buildConfigField("String", "PRIVACY_POLICY_URL", "\"${publicValue("privacyPolicyUrl")}\"")
+    buildConfigField("String", "SUPPORT_EMAIL", "\"${publicValue("supportEmail")}\"")
+    buildConfigField("String", "PUBLIC_APP_URL", "\"${publicValue("publicAppUrl")}\"")
+
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
@@ -29,7 +32,7 @@ android {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
       storeFile = file(keystorePath)
       storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
+      keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
@@ -43,13 +46,19 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      // R8 shrinks and obfuscates release code; resource shrinking drops unused resources.
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      // An unsigned review bundle is allowed; publishing requires the owner's upload key.
+      signingConfig = if (listOf("KEYSTORE_PATH", "STORE_PASSWORD", "KEY_PASSWORD").all { !System.getenv(it).isNullOrBlank() }) {
+        signingConfigs.getByName("release")
+      } else null
     }
     debug { }
   }
   compileOptions {
+    isCoreLibraryDesugaringEnabled = true
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
   }
@@ -60,18 +69,21 @@ android {
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
+// Explicit upload guard; unsigned bundleRelease remains available for local review.
+tasks.register("verifyPlaySigning") {
+  group = "verification"
+  description = "Checks owner-provided release signing configuration without printing secrets."
+  doLast {
+    check(listOf("KEYSTORE_PATH", "STORE_PASSWORD", "KEY_PASSWORD").all { !System.getenv(it).isNullOrBlank() }) {
+      "Play upload requires KEYSTORE_PATH, STORE_PASSWORD and KEY_PASSWORD in the local build environment."
+    }
+    check(file(System.getenv("KEYSTORE_PATH")).isFile) { "Configured upload keystore does not exist." }
+  }
+}
+
 kotlin {
   jvmToolchain(17)
 }
-
-// Configure the Secrets Gradle Plugin to use .env and .env.example files
-// to match the convention used in Web projects.
-secrets {
-  propertiesFileName = ".env"
-  defaultPropertiesFileName = ".env.example"
-}
-
-googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
 
 room {
   schemaDirectory("$projectDir/schemas")
@@ -80,6 +92,7 @@ room {
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
+  coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
   implementation(platform(libs.androidx.compose.bom))
   // implementation(platform(libs.firebase.bom))
   // implementation(libs.accompanist.permissions)
@@ -122,6 +135,9 @@ dependencies {
   // implementation(libs.play.services.location)
   // implementation(libs.retrofit)
   testImplementation(libs.androidx.core)
+  testImplementation(platform(libs.androidx.compose.bom))
+  testImplementation(libs.androidx.compose.ui.test.junit4)
+  testImplementation(libs.androidx.junit)
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)

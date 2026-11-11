@@ -22,11 +22,11 @@ class UserPreferencesRepository(private val context: Context) {
     }
 
     val notificationsEnabledFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_NOTIFICATIONS_ENABLED] ?: true
+        prefs[KEY_NOTIFICATIONS_ENABLED] ?: false
     }
 
     val themeModeFlow: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_THEME_MODE] ?: "SYSTEM"
+        prefs[KEY_THEME_MODE] ?: "LIGHT"
     }
 
     suspend fun setActiveTeamId(teamId: Long) {

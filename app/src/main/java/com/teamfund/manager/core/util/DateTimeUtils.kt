@@ -2,6 +2,7 @@ package com.teamfund.manager.core.util
 
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -12,6 +13,7 @@ object DateTimeUtils {
     private val dateTimeFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy • hh:mm a")
     private val timeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
     private val monthYearFormatter = DateTimeFormatter.ofPattern("MMMM yyyy")
+    private val dayHeaderFormatter = DateTimeFormatter.ofPattern("EEE, MMM d")
 
     fun formatDate(timestamp: Long): String {
         val date = Instant.ofEpochMilli(timestamp)
@@ -76,5 +78,32 @@ object DateTimeUtils {
     fun localMillisToUtcPicker(localMillis: Long): Long {
         val localDate = Instant.ofEpochMilli(localMillis).atZone(ZoneId.systemDefault()).toLocalDate()
         return localDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+    }
+
+    /** Start (inclusive) and end (exclusive) of the current calendar month in local time. */
+    fun currentMonthRange(now: Long = System.currentTimeMillis()): LongRange {
+        val month = toYearMonth(now)
+        val zone = ZoneId.systemDefault()
+        val start = month.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val endExclusive = month.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        return start until endExclusive
+    }
+
+    fun toYearMonth(timestamp: Long): YearMonth =
+        YearMonth.from(Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()))
+
+    fun toLocalDate(timestamp: Long): LocalDate =
+        Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
+
+    fun formatMonthYear(month: YearMonth): String = month.format(monthYearFormatter)
+
+    /** Day header such as "Today", "Yesterday" or "Mon, Nov 10". */
+    fun formatDayHeader(date: LocalDate): String {
+        val today = LocalDate.now()
+        return when (date) {
+            today -> "Today"
+            today.minusDays(1) -> "Yesterday"
+            else -> date.format(dayHeaderFormatter)
+        }
     }
 }

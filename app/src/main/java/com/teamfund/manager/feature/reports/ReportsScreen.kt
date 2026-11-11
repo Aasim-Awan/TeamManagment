@@ -1,5 +1,7 @@
 package com.teamfund.manager.feature.reports
 
+import com.teamfund.manager.core.designsystem.TeamFundButton
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +33,7 @@ import com.teamfund.manager.core.designsystem.MoneyText
 import com.teamfund.manager.core.designsystem.TeamFundTopBar
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
@@ -50,7 +53,9 @@ fun ReportsScreen(
         uri?.let {
             val content = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { it.readText() }
             if (content != null) {
-                viewModel.importContributionsFromCsv(content)
+                viewModel.importContributionsFromCsv(content) { message ->
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -61,7 +66,9 @@ fun ReportsScreen(
         uri?.let {
             val content = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { it.readText() }
             if (content != null) {
-                viewModel.importExpensesFromCsv(content)
+                viewModel.importExpensesFromCsv(content) { message ->
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -81,7 +88,7 @@ fun ReportsScreen(
     Scaffold(
         topBar = {
             TeamFundTopBar(
-                title = "Financial Reports",
+                title = "Reports",
                 showBackButton = true,
                 onBackClick = onBackClick,
                 actions = {
@@ -159,7 +166,7 @@ fun ReportsScreen(
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
-                        Button(
+                        TeamFundButton(
                             onClick = {
                                 val csv = viewModel.exportMasterReport()
                                 shareCsv(csv, "team_fund_audit_report.csv")
@@ -242,13 +249,13 @@ fun ReportsScreen(
                     ) {
                         Text(text = p.player.name, style = MaterialTheme.typography.bodyLarge)
                         MoneyText(
-                            minorUnits = p.netBalanceMinorUnits,
+                            minorUnits = p.positionMinorUnits,
                             currencyCode = state.currencyCode,
                             includeSign = true,
                             fontWeight = FontWeight.Bold,
                             color = when {
-                                p.netBalanceMinorUnits > 0 -> MaterialTheme.colorScheme.primary
-                                p.netBalanceMinorUnits < 0 -> MaterialTheme.colorScheme.error
+                                p.positionMinorUnits > 0 -> MaterialTheme.colorScheme.primary
+                                p.positionMinorUnits < 0 -> MaterialTheme.colorScheme.error
                                 else -> MaterialTheme.colorScheme.onSurface
                             }
                         )

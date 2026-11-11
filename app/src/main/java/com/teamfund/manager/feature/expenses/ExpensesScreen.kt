@@ -1,5 +1,7 @@
 package com.teamfund.manager.feature.expenses
 
+import com.teamfund.manager.core.designsystem.TeamFundFilterChip
+
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,7 +47,7 @@ fun ExpensesScreen(
     Scaffold(
         topBar = {
             TeamFundTopBar(
-                title = "Shared Expenses Log",
+                title = "Shared expenses",
                 showBackButton = true,
                 onBackClick = onBackClick
             )
@@ -78,13 +80,13 @@ fun ExpensesScreen(
                         .padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    FilterChip(
+                    TeamFundFilterChip(
                         selected = state.selectedCategory == null,
                         onClick = { viewModel.setCategoryFilter(null) },
-                        label = { Text("All Categories") }
+                        label = { Text("All") }
                     )
                     ExpenseCategory.entries.forEach { cat ->
-                        FilterChip(
+                        TeamFundFilterChip(
                             selected = state.selectedCategory == cat,
                             onClick = { viewModel.setCategoryFilter(cat) },
                             label = { Text(cat.displayName) }

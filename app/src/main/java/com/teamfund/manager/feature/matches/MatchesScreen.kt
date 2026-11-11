@@ -1,5 +1,7 @@
 package com.teamfund.manager.feature.matches
 
+import com.teamfund.manager.core.designsystem.TeamFundFilterChip
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,7 +44,7 @@ fun MatchesScreen(
     Scaffold(
         topBar = {
             TeamFundTopBar(
-                title = "Cricket Matches",
+                title = state.activeSeason?.let { "Matches • ${it.name}" } ?: "Matches",
                 showBackButton = true,
                 onBackClick = onBackClick
             )
@@ -75,7 +77,7 @@ fun MatchesScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     MatchFilter.entries.forEach { filter ->
-                        FilterChip(
+                        TeamFundFilterChip(
                             selected = state.selectedFilter == filter,
                             onClick = { viewModel.setFilter(filter) },
                             label = { Text(filter.displayName) },
@@ -87,7 +89,7 @@ fun MatchesScreen(
                 if (state.filteredMatches.isEmpty()) {
                     EmptyStateView(
                         title = "No Matches Found",
-                        message = "Log your played or upcoming cricket fixtures to track match expenses and stats.",
+                        message = "Schedule fixtures or log results to track match expenses and stats.",
                         icon = Icons.Default.SportsCricket,
                         actionLabel = "Schedule Match",
                         onActionClick = onNavigateToAddMatch

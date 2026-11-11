@@ -31,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -54,6 +53,7 @@ fun ExpenseDetailScreen(
     onBackClick: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val expense = state.expenses.find { it.id == expenseId }
     
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -139,7 +139,7 @@ fun ExpenseDetailScreen(
                         Spacer(modifier = Modifier.height(12.dp))
                         
                         val payerName = if (expense.paidByPlayerId == null) "Team Fund" 
-                                        else state.players.find { it.id == expense.paidByPlayerId }?.name ?: "Unknown"
+                                        else state.allPlayers.find { it.id == expense.paidByPlayerId }?.name ?: "Unknown"
                         
                         Text("Paid By", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(text = payerName, style = MaterialTheme.typography.titleMedium)
@@ -176,7 +176,7 @@ fun ExpenseDetailScreen(
                                 role = com.teamfund.manager.domain.model.PlayerRole.MANAGER
                             )
                         } else {
-                            state.players.find { it.id == share.playerId }
+                            state.allPlayers.find { it.id == share.playerId }
                         }
 
                         if (player != null) {
@@ -205,7 +205,7 @@ fun ExpenseDetailScreen(
 
                         items(expenseSettlements) { settlement ->
                             val fromPlayer = if (settlement.fromPlayerId == 0L) "Team Fund" 
-                                            else state.players.find { it.id == settlement.fromPlayerId }?.name ?: "Member"
+                                            else state.allPlayers.find { it.id == settlement.fromPlayerId }?.name ?: "Member"
                             
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -261,21 +261,25 @@ fun ExpenseDetailScreen(
     }
     
     settlingShare?.let { (player, share) ->
-        val playerSummary = PlayerFinancialSummary(player = player, netBalanceMinorUnits = -share.remainingAmountMinorUnits)
+        val playerSummary = PlayerFinancialSummary(
+            player = player,
+            unpaidExpenseSharesMinorUnits = share.remainingAmountMinorUnits
+        )
         SettleDebtSheet(
             playerSummary = playerSummary,
             currencyCode = expense?.currencyCode ?: "USD",
             expenses = state.expenses,
             onDismiss = { settlingShare = null },
+            isSaving = isSaving,
             initialExpenseId = expenseId,
-            onSettle = { amount, note, isIncoming, _ ->
-                viewModel.settleDebt(
-                    fromPlayerId = if (isIncoming) player.id else 0L,
-                    toPlayerId = if (isIncoming) null else player.id,
-                    expenseId = expenseId,
-                    shareId = share.id,
+            onSettle = { amount, note, mode, _ ->
+                viewModel.settleAdjustment(
+                    playerId = player.id,
+                    mode = mode,
                     amountMinorUnits = amount,
                     note = note,
+                    expenseId = expenseId,
+                    shareId = share.id,
                     onSuccess = { settlingShare = null }
                 )
             }
@@ -318,7 +322,7 @@ fun ExpenseShareItem(
                 val isActuallySettled = share.remainingAmountMinorUnits <= 0L
                 Text(text = player.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                 if (isActuallySettled) {
-                    Text(text = "Settled", style = MaterialTheme.typography.labelSmall, color = Color(0xFF2E7D32))
+                    Text(text = "Settled", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                 } else if (share.paidAmountMinorUnits > 0) {
                     Text(
                         text = "Paid: ${com.teamfund.manager.core.util.MoneyFormatter.fromMinorUnits(share.paidAmountMinorUnits)} $currencyCode",

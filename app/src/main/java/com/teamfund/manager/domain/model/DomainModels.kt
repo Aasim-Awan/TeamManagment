@@ -31,6 +31,7 @@ data class Player(
     val teamId: Long,
     val name: String,
     val role: PlayerRole = PlayerRole.PLAYER,
+    val cricketRole: CricketRole = CricketRole.UNSPECIFIED,
     val phoneNumber: String? = null,
     val avatarUri: String? = null,
     val isActive: Boolean = true,
@@ -51,6 +52,9 @@ data class Match(
     val overs: String? = null,
     val tossWinner: String? = null,
     val playerOfTheMatchId: Long? = null,
+    val seasonId: Long? = null,
+    val matchFeeMinorUnits: Long = 0L,
+    val groundFeeMinorUnits: Long = 0L,
     val notes: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
@@ -105,9 +109,81 @@ data class Settlement(
     val matchId: Long? = null,
     val expenseId: Long? = null,
     val amountMinorUnits: Long,
+    val adjustmentKind: SettlementAdjustmentKind = SettlementAdjustmentKind.PLAYER_TO_TEAM,
     val date: Long = System.currentTimeMillis(),
     val note: String? = null,
     val createdAt: Long = System.currentTimeMillis()
+)
+
+data class MatchPlayer(
+    val id: Long = 0L,
+    val matchId: Long,
+    val playerId: Long,
+    val status: MatchPlayerStatus = MatchPlayerStatus.AVAILABLE,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+data class Season(
+    val id: Long = 0L,
+    val teamId: Long,
+    val name: String,
+    val startDate: Long,
+    val endDate: Long? = null,
+    val isActive: Boolean = false
+)
+
+data class MatchPlayerStats(
+    val id: Long = 0L,
+    val matchId: Long,
+    val playerId: Long,
+    val runs: Int = 0,
+    val balls: Int = 0,
+    val wickets: Int = 0,
+    val oversBowled: String? = null,
+    val catches: Int = 0,
+    val isPlayerOfMatch: Boolean = false
+)
+
+data class Fine(
+    val id: Long = 0L,
+    val teamId: Long,
+    val playerId: Long,
+    val matchId: Long? = null,
+    val amountMinorUnits: Long,
+    val reason: FineReason = FineReason.OTHER,
+    val date: Long = System.currentTimeMillis(),
+    val note: String? = null,
+    val settlementId: Long? = null,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+data class InventoryItem(
+    val id: Long = 0L,
+    val teamId: Long,
+    val name: String,
+    val category: InventoryCategory = InventoryCategory.OTHER,
+    val quantity: Int = 0,
+    val notes: String? = null
+)
+
+data class InventoryMovement(
+    val id: Long = 0L,
+    val itemId: Long,
+    val delta: Int,
+    val matchId: Long? = null,
+    val playerId: Long? = null,
+    val date: Long = System.currentTimeMillis(),
+    val note: String? = null
+)
+
+data class DueSchedule(
+    val id: Long = 0L,
+    val teamId: Long,
+    val name: String,
+    val amountMinorUnits: Long,
+    val period: DuePeriod = DuePeriod.MONTHLY,
+    val nextDueDate: Long,
+    val isActive: Boolean = true
 )
 
 data class PlayerFinancialSummary(
@@ -117,16 +193,40 @@ data class PlayerFinancialSummary(
     val personalExpenseSharesMinorUnits: Long = 0L,
     val settlementsPaidMinorUnits: Long = 0L,
     val settlementsReceivedMinorUnits: Long = 0L,
+    val totalChargesMinorUnits: Long = 0L,
     val netBalanceMinorUnits: Long = 0L,
     val unpaidExpenseSharesMinorUnits: Long = 0L
 ) {
+    /** Single owed/credit line: net cash position minus unpaid shares (counted once). */
+    val positionMinorUnits: Long
+        get() = netBalanceMinorUnits - unpaidExpenseSharesMinorUnits
+
     val statusText: String
         get() = when {
-            unpaidExpenseSharesMinorUnits > 0 -> "Player has unpaid expense shares."
-            netBalanceMinorUnits > 0 -> "The team owes this player."
-            netBalanceMinorUnits < 0 -> "This player owes the team."
+            positionMinorUnits > 0 -> "The team owes this player."
+            positionMinorUnits < 0 -> "Collect from this player."
+            unpaidExpenseSharesMinorUnits > 0 -> "Unpaid shares included in collect total."
             else -> "Settled."
         }
+
+    val amountTeamShouldPayMinorUnits: Long
+        get() = positionMinorUnits.coerceAtLeast(0L)
+
+    val amountTeamShouldCollectMinorUnits: Long
+        get() = (-positionMinorUnits).coerceAtLeast(0L)
+
+    fun balanceActionLabel(currencyCode: String): String? = when {
+        positionMinorUnits > 0 ->
+            "Pay player: ${com.teamfund.manager.core.util.MoneyFormatter.format(amountTeamShouldPayMinorUnits, currencyCode)}"
+        positionMinorUnits < 0 ->
+            "Collect: ${com.teamfund.manager.core.util.MoneyFormatter.format(amountTeamShouldCollectMinorUnits, currencyCode)}"
+        else -> null
+    }
+
+    fun sharesBreakdownLabel(currencyCode: String): String? =
+        if (unpaidExpenseSharesMinorUnits > 0L) {
+            "incl. shares ${com.teamfund.manager.core.util.MoneyFormatter.format(unpaidExpenseSharesMinorUnits, currencyCode)}"
+        } else null
 }
 
 data class TeamFinancialSummary(
@@ -182,5 +282,13 @@ sealed class ActivityItem {
         val toPlayerName: String?
     ) : ActivityItem() {
         override val timestamp: Long get() = settlement.date
+    }
+
+    data class FineActivity(
+        override val id: Long,
+        val fine: Fine,
+        val playerName: String
+    ) : ActivityItem() {
+        override val timestamp: Long get() = fine.date
     }
 }

@@ -31,7 +31,7 @@ object MoneyFormatter {
 
     /** Parse major-unit text (e.g. "19.99") to minor units. Invalid → 0. */
     fun toMinorUnits(majorText: String): Long {
-        val cleaned = majorText.trim().replace(",", "")
+        val cleaned = normalizeDecimal(majorText)
         if (cleaned.isBlank()) return 0L
         return try {
             BigDecimal(cleaned)
@@ -40,6 +40,35 @@ object MoneyFormatter {
                 .longValueExact()
         } catch (_: Exception) {
             0L
+        }
+    }
+
+    /**
+     * Accepts both "." and "," as the decimal separator, because comma-decimal locales
+     * (e.g. German, French) show "," on the decimal keyboard.
+     * - Both present: the last one is the decimal separator ("1.234,50" and "1,234.50" → "1234.50").
+     * - Only ",": decimal when it is the single comma with 1–2 digits after it ("12,5" → "12.5"),
+     *   otherwise a thousands separator ("1,000" → "1000").
+     */
+    internal fun normalizeDecimal(text: String): String {
+        val trimmed = text.trim().replace(" ", "").replace(" ", "")
+        val lastComma = trimmed.lastIndexOf(',')
+        val lastDot = trimmed.lastIndexOf('.')
+        return when {
+            lastComma >= 0 && lastDot >= 0 -> if (lastComma > lastDot) {
+                trimmed.replace(".", "").replace(',', '.')
+            } else {
+                trimmed.replace(",", "")
+            }
+            lastComma >= 0 -> {
+                val digitsAfter = trimmed.length - lastComma - 1
+                if (trimmed.count { it == ',' } == 1 && digitsAfter in 1..2) {
+                    trimmed.replace(',', '.')
+                } else {
+                    trimmed.replace(",", "")
+                }
+            }
+            else -> trimmed
         }
     }
 

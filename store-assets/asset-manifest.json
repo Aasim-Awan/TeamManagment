@@ -1,0 +1,56 @@
+{
+  "generatedFrom": "Real app Compose screenshots; isolated fictional Northside Cricket records",
+  "icon": "play-icon-512.png",
+  "featureGraphic": "feature-graphic-1024x500.png",
+  "screenshots": [
+    {
+      "file": "screenshots/01-home.png",
+      "width": 1080,
+      "height": 1920,
+      "alt": "Team dashboard showing the available fund, money in, spending this month and quick actions."
+    },
+    {
+      "file": "screenshots/02-players.png",
+      "width": 1080,
+      "height": 1920,
+      "alt": "Player roster with search, roles, contributions and outstanding expense shares."
+    },
+    {
+      "file": "screenshots/03-matches.png",
+      "width": 1080,
+      "height": 1920,
+      "alt": "Match list showing upcoming fixtures, venues and a recorded match result."
+    },
+    {
+      "file": "screenshots/04-reports.png",
+      "width": 1080,
+      "height": 1920,
+      "alt": "Financial report showing fund balance, contributions, expense totals and category breakdown."
+    },
+    {
+      "file": "screenshots/05-add-expense.png",
+      "width": 1080,
+      "height": 1920,
+      "alt": "Expense form with title, amount, date, category and payer fields."
+    },
+    {
+      "file": "screenshots/06-settings.png",
+      "width": 1080,
+      "height": 1920,
+      "alt": "Settings screen with team switcher, currency, seasons, monthly dues, theme and data options."
+    },
+    {
+      "file": "screenshots/07-all-expenses.png",
+      "width": 1080,
+      "height": 1920,
+      "alt": "All expenses timeline grouped by month and day with total spent, fund and player payments, and filters."
+    },
+    {
+      "file": "screenshots/08-settlements.png",
+      "width": 1080,
+      "height": 1920,
+      "alt": "Settlement screen showing player dues and controls to record payments."
+    }
+  ],
+  "featureAlt": "TeamFund Manager with a team dashboard and the message Your team. One clear view."
+}

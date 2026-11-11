@@ -1,6 +1,7 @@
 package com.teamfund.manager.feature.dashboard
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.SportsCricket
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Card
@@ -46,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.teamfund.manager.core.designsystem.ActivityRow
 import com.teamfund.manager.core.designsystem.EmptyStateView
 import com.teamfund.manager.core.designsystem.LoadingView
 import com.teamfund.manager.core.designsystem.MatchCard
@@ -67,6 +70,7 @@ fun DashboardScreen(
     onNavigateToMatches: () -> Unit,
     onNavigateToTeam: () -> Unit,
     onNavigateToExpenses: () -> Unit,
+    onNavigateToAllExpenses: () -> Unit,
     onNavigateToContributions: () -> Unit,
     onNavigateToReports: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -90,7 +94,7 @@ fun DashboardScreen(
         } else if (state.team == null) {
             EmptyStateView(
                 title = "No Active Team Found",
-                message = "Create or select a team to start tracking shared expenses and cricket matches.",
+                message = "Create or select a team to manage players, matches and shared expenses.",
                 actionLabel = "Setup Team",
                 onActionClick = onNavigateToSettings,
                 modifier = Modifier.padding(innerPadding)
@@ -109,8 +113,11 @@ fun DashboardScreen(
                     TeamBalanceCard(
                         balanceMinorUnits = state.financialSummary.teamFundBalanceMinorUnits,
                         totalMoneyInMinorUnits = state.financialSummary.totalContributionsMinorUnits,
-                        totalMoneyOutMinorUnits = state.financialSummary.totalExpensesFromFundMinorUnits,
-                        currencyCode = state.currencyCode
+                        totalMoneyOutMinorUnits = state.thisMonthExpensesMinorUnits,
+                        moneyInLabel = "Money In (all time)",
+                        moneyOutLabel = "Spent this month",
+                        currencyCode = state.currencyCode,
+                        onAddContribution = onNavigateToAddContribution
                     )
                 }
 
@@ -121,11 +128,12 @@ fun DashboardScreen(
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                        )
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(
-                                text = "QUICK ACTIONS",
+                                text = "Quick actions",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -137,19 +145,19 @@ fun DashboardScreen(
                             ) {
                                 QuickActionButton(
                                     icon = Icons.Default.SportsCricket,
-                                    label = "+ Match",
+                                    label = "Match",
                                     onClick = onNavigateToAddMatch,
                                     testTag = "quick_add_match"
                                 )
                                 QuickActionButton(
                                     icon = Icons.Default.Receipt,
-                                    label = "+ Expense",
+                                    label = "Expense",
                                     onClick = onNavigateToAddExpense,
                                     testTag = "quick_add_expense"
                                 )
                                 QuickActionButton(
                                     icon = Icons.Default.Payments,
-                                    label = "+ Funds",
+                                    label = "Funds",
                                     onClick = onNavigateToAddContribution,
                                     testTag = "quick_add_contribution"
                                 )
@@ -171,7 +179,7 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         StatCard(
-                            title = "Played / Win Rate",
+                            title = "Match performance",
                             value = "${state.matchStats.matchesPlayed} (${String.format("%.0f", state.matchStats.winRate)}%)",
                             subtitle = "W: ${state.matchStats.wins} | L: ${state.matchStats.losses}",
                             modifier = Modifier
@@ -179,7 +187,7 @@ fun DashboardScreen(
                                 .clickable { onNavigateToMatches() }
                         )
                         StatCard(
-                            title = "Pending Dues",
+                            title = "Pending dues",
                             value = MoneyTextString(state.financialSummary.totalOutstandingDebtMinorUnits, state.currencyCode),
                             subtitle = "Owed by members",
                             valueColor = MaterialTheme.colorScheme.error,
@@ -223,11 +231,12 @@ fun DashboardScreen(
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                        )
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
-                                text = "TEAM MANAGEMENT",
+                                text = "Manage your team",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -235,16 +244,9 @@ fun DashboardScreen(
                             Spacer(modifier = Modifier.height(12.dp))
 
                             NavigationRow(
-                                icon = Icons.Default.Group,
-                                title = "Players & Balances",
-                                subtitle = "${state.playerSummaries.size} active players",
-                                onClick = onNavigateToTeam
-                            )
-                            Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                            NavigationRow(
                                 icon = Icons.Default.Receipt,
-                                title = "Shared Expenses Log",
-                                subtitle = "Ground, balls, umpires & equipment",
+                                title = "Shared expenses",
+                                subtitle = "Venue, equipment and match costs",
                                 onClick = onNavigateToExpenses
                             )
                             Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
@@ -257,8 +259,8 @@ fun DashboardScreen(
                             Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                             NavigationRow(
                                 icon = Icons.Default.BarChart,
-                                title = "Financial Reports & Summaries",
-                                subtitle = "Exportable audit ledgers",
+                                title = "Reports & summaries",
+                                subtitle = "Balances and CSV exports",
                                 onClick = onNavigateToReports
                             )
                         }
@@ -267,11 +269,23 @@ fun DashboardScreen(
 
                 // 6. Recent Activities Feed
                 item {
-                    Text(
-                        text = "Recent Activity Feed",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Recent activity",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TextButton(
+                            onClick = onNavigateToAllExpenses,
+                            modifier = Modifier.testTag("recent_activity_view_all")
+                        ) {
+                            Text("View All")
+                        }
+                    }
                 }
 
                 if (state.recentActivities.isEmpty()) {
@@ -306,7 +320,7 @@ private fun NavigationRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -337,69 +351,6 @@ private fun NavigationRow(
     }
 }
 
-@Composable
-private fun ActivityRow(
-    activity: ActivityItem,
-    currencyCode: String
-) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        shadowElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            when (activity) {
-                is ActivityItem.ExpenseActivity -> {
-                    Icon(Icons.Default.Receipt, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = activity.expense.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text(
-                            text = "Paid by ${activity.paidByPlayerName ?: "Team Fund"} • ${DateTimeUtils.formatDate(activity.expense.date)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    MoneyText(minorUnits = activity.expense.amountMinorUnits, currencyCode = currencyCode, color = MaterialTheme.colorScheme.error)
-                }
-                is ActivityItem.ContributionActivity -> {
-                    Icon(Icons.Default.Payments, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "${activity.playerName} contributed", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text(
-                            text = "${activity.contribution.purpose.displayName} • ${DateTimeUtils.formatDate(activity.contribution.date)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    MoneyText(minorUnits = activity.contribution.amountMinorUnits, currencyCode = currencyCode, includeSign = true, color = MaterialTheme.colorScheme.primary)
-                }
-                is ActivityItem.MatchActivity -> {
-                    Icon(Icons.Default.SportsCricket, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "Match vs ${activity.match.opponentName}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text(text = DateTimeUtils.formatDate(activity.match.date), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                is ActivityItem.SettlementActivity -> {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "${activity.fromPlayerName} settled debt", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text(text = DateTimeUtils.formatDate(activity.settlement.date), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    MoneyText(minorUnits = activity.settlement.amountMinorUnits, currencyCode = currencyCode, color = MaterialTheme.colorScheme.primary)
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun MoneyTextString(minorUnits: Long, currencyCode: String): String {

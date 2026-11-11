@@ -49,8 +49,7 @@ class CalculateTeamBalanceUseCase {
 
         val teamBalance = totalMoneyIn - totalMoneyOut
 
-        // Total Outstanding Debt = sum of all members' unpaid expense shares
-        val totalOutstanding = playerSummaries.sumOf { it.unpaidExpenseSharesMinorUnits }
+        val totalOutstanding = playerSummaries.sumOf { it.amountTeamShouldCollectMinorUnits }
 
         return TeamFinancialSummary(
             teamFundBalanceMinorUnits = teamBalance,

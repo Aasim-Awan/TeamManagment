@@ -48,6 +48,7 @@ fun SettlementsScreen(
     onBackClick: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     
     var showSettleDialog by remember { mutableStateOf<PlayerFinancialSummary?>(null) }
@@ -89,8 +90,8 @@ fun SettlementsScreen(
                 when (selectedTabIndex) {
                     0 -> {
                         // Filter players who either owe/are owed overall, OR have specific unpaid expense dues
-                        val pendingPlayers = state.playerSummaries.filter { 
-                            it.netBalanceMinorUnits != 0L || it.unpaidExpenseSharesMinorUnits > 0L 
+                        val pendingPlayers = state.playerSummaries.filter {
+                            it.positionMinorUnits != 0L
                         }
 
                         if (pendingPlayers.isEmpty()) {
@@ -180,13 +181,14 @@ fun SettlementsScreen(
             currencyCode = state.currencyCode,
             expenses = state.expenses,
             onDismiss = { showSettleDialog = null },
-            onSettle = { amount, note, isIncoming, expenseId ->
-                viewModel.settleDebt(
-                    fromPlayerId = if (isIncoming) summary.player.id else 0L,
-                    toPlayerId = if (isIncoming) null else summary.player.id,
-                    expenseId = expenseId,
+            isSaving = isSaving,
+            onSettle = { amount, note, mode, expenseId ->
+                viewModel.settleAdjustment(
+                    playerId = summary.player.id,
+                    mode = mode,
                     amountMinorUnits = amount,
                     note = note,
+                    expenseId = expenseId,
                     onSuccess = { showSettleDialog = null }
                 )
             }

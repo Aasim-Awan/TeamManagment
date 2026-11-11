@@ -1,5 +1,9 @@
 package com.teamfund.manager.feature.settlements
 
+import com.teamfund.manager.core.designsystem.TeamFundTextField
+import com.teamfund.manager.core.designsystem.TeamFundButton
+import com.teamfund.manager.core.designsystem.TeamFundFilterChip
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -8,6 +12,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.*
+import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,6 +23,7 @@ import com.teamfund.manager.core.util.DateTimeUtils
 import com.teamfund.manager.core.util.MoneyFormatter
 import com.teamfund.manager.domain.model.Expense
 import com.teamfund.manager.domain.model.PlayerFinancialSummary
+import com.teamfund.manager.domain.model.SettleAdjustmentMode
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,24 +33,29 @@ fun SettleDebtSheet(
     currencyCode: String,
     expenses: List<Expense>,
     onDismiss: () -> Unit,
-    onSettle: (Long, String, Boolean, Long?) -> Unit,
-    initialExpenseId: Long? = null
+    onSettle: (Long, String, SettleAdjustmentMode, Long?) -> Unit,
+    initialExpenseId: Long? = null,
+    isSaving: Boolean = false
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val initialAmount = if (playerSummary.unpaidExpenseSharesMinorUnits > 0L) 
-        playerSummary.unpaidExpenseSharesMinorUnits 
-    else 
-        kotlin.math.abs(playerSummary.netBalanceMinorUnits)
+    val initialAmount = playerSummary.amountTeamShouldCollectMinorUnits
+        .takeIf { it > 0L }
+        ?: playerSummary.amountTeamShouldPayMinorUnits
 
     var amountText by remember {
         mutableStateOf(MoneyFormatter.fromMinorUnits(initialAmount))
     }
     var note by remember { mutableStateOf("Settlement") }
 
-    // true = player pays team fund; false = team fund pays player
-    var isIncoming by remember { 
-        mutableStateOf(playerSummary.unpaidExpenseSharesMinorUnits > 0L || playerSummary.netBalanceMinorUnits < 0) 
+    var adjustmentMode by remember {
+        mutableStateOf(
+            when {
+                playerSummary.positionMinorUnits < 0L -> SettleAdjustmentMode.PLAYER_PAID
+                playerSummary.positionMinorUnits > 0L -> SettleAdjustmentMode.TEAM_PAID_PLAYER
+                else -> SettleAdjustmentMode.PLAYER_PAID
+            }
+        )
     }
 
     var selectedExpenseId by remember {
@@ -65,8 +76,10 @@ fun SettleDebtSheet(
             }
         } else {
             note = "General Settlement"
-            amountText =
-                MoneyFormatter.fromMinorUnits(kotlin.math.abs(playerSummary.netBalanceMinorUnits))
+            val fallback = playerSummary.amountTeamShouldCollectMinorUnits
+                .takeIf { it > 0L }
+                ?: playerSummary.amountTeamShouldPayMinorUnits
+            amountText = MoneyFormatter.fromMinorUnits(fallback)
         }
     }
 
@@ -102,7 +115,11 @@ fun SettleDebtSheet(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (playerSummary.netBalanceMinorUnits < 0) "Member owes team fund" else "Team fund owes member",
+                        text = when {
+                            playerSummary.positionMinorUnits < 0 -> "Collect ${MoneyFormatter.format(playerSummary.amountTeamShouldCollectMinorUnits, currencyCode)}"
+                            playerSummary.positionMinorUnits > 0 -> "Pay player ${MoneyFormatter.format(playerSummary.amountTeamShouldPayMinorUnits, currencyCode)}"
+                            else -> "Settled"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -114,16 +131,50 @@ fun SettleDebtSheet(
                 color = MaterialTheme.colorScheme.outlineVariant
             )
 
-            // Flow Direction
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilterChip(
-                    selected = isIncoming,
-                    onClick = { isIncoming = true },
-                    label = { Text("Player → Team") },
-                    leadingIcon = if (isIncoming) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TeamFundFilterChip(
+                        selected = adjustmentMode == SettleAdjustmentMode.PLAYER_PAID,
+                        onClick = { adjustmentMode = SettleAdjustmentMode.PLAYER_PAID },
+                        label = { Text("Player paid") },
+                        modifier = Modifier.weight(1f),
+                        leadingIcon = if (adjustmentMode == SettleAdjustmentMode.PLAYER_PAID) {
+                            {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        } else null
+                    )
+                    TeamFundFilterChip(
+                        selected = adjustmentMode == SettleAdjustmentMode.PLAYER_OWES,
+                        onClick = { adjustmentMode = SettleAdjustmentMode.PLAYER_OWES },
+                        label = { Text("Player owes") },
+                        modifier = Modifier.weight(1f),
+                        leadingIcon = if (adjustmentMode == SettleAdjustmentMode.PLAYER_OWES) {
+                            {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        } else null
+                    )
+                }
+                TeamFundFilterChip(
+                    selected = adjustmentMode == SettleAdjustmentMode.TEAM_PAID_PLAYER,
+                    onClick = { adjustmentMode = SettleAdjustmentMode.TEAM_PAID_PLAYER },
+                    label = { Text("Team paid player") },
+                    leadingIcon = if (adjustmentMode == SettleAdjustmentMode.TEAM_PAID_PLAYER) {
                         {
                             Icon(
                                 Icons.Default.CheckCircle,
@@ -131,20 +182,8 @@ fun SettleDebtSheet(
                                 modifier = Modifier.size(16.dp)
                             )
                         }
-                    } else null)
-                FilterChip(
-                    selected = !isIncoming,
-                    onClick = { isIncoming = false },
-                    label = { Text("Team → Player") },
-                    leadingIcon = if (!isIncoming) {
-                        {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    } else null)
+                    } else null
+                )
             }
 
             // Expense Selector
@@ -159,7 +198,7 @@ fun SettleDebtSheet(
                     else -> expenses.find { it.id == selectedExpenseId }?.title ?: "Expense"
                 }
 
-                OutlinedTextField(
+                TeamFundTextField(
                     value = expenseName,
                     onValueChange = {},
                     readOnly = true,
@@ -227,7 +266,7 @@ fun SettleDebtSheet(
             }
 
             // Amount Input
-            OutlinedTextField(
+            TeamFundTextField(
                 value = amountText,
                 onValueChange = { amountText = it },
                 label = { Text("Settlement Amount ($currencyCode)") },
@@ -264,7 +303,7 @@ fun SettleDebtSheet(
             )
 
             // Note Input
-            OutlinedTextField(
+            TeamFundTextField(
                 value = note,
                 onValueChange = { note = it },
                 label = { Text("Reference Note") },
@@ -273,20 +312,62 @@ fun SettleDebtSheet(
                 shape = RoundedCornerShape(12.dp)
             )
 
+            val amountMinorPreview = MoneyFormatter.toMinorUnits(amountText)
+            val positionDelta = when {
+                amountMinorPreview <= 0L -> 0L
+                adjustmentMode == SettleAdjustmentMode.PLAYER_PAID -> amountMinorPreview
+                adjustmentMode == SettleAdjustmentMode.PLAYER_OWES -> -amountMinorPreview
+                else -> -amountMinorPreview
+            }
+            val projectedPosition = playerSummary.positionMinorUnits + positionDelta
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        "Collect / pay after this adjustment",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        when {
+                            projectedPosition > 0 ->
+                                "Pay player: ${MoneyFormatter.format(projectedPosition, currencyCode)}"
+                            projectedPosition < 0 ->
+                                "Collect: ${MoneyFormatter.format(-projectedPosition, currencyCode)}"
+                            else -> "Settled"
+                        },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        when (adjustmentMode) {
+                            SettleAdjustmentMode.PLAYER_PAID -> "Player → team fund"
+                            SettleAdjustmentMode.PLAYER_OWES -> "Charge (no cash moved)"
+                            SettleAdjustmentMode.TEAM_PAID_PLAYER -> "Team fund → player"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
             // Action Buttons
-            Button(
+            TeamFundButton(
                 onClick = {
                     val amountMinor = MoneyFormatter.toMinorUnits(amountText)
                     if (amountMinor > 0) {
-                        onSettle(amountMinor, note, isIncoming, selectedExpenseId)
+                        onSettle(amountMinor, note, adjustmentMode, selectedExpenseId)
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = amountText.isNotEmpty(),
+                enabled = amountText.isNotEmpty() && !isSaving,
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Text(

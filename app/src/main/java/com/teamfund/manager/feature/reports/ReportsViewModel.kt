@@ -11,11 +11,13 @@ import com.teamfund.manager.core.util.MoneyFormatter
 import com.teamfund.manager.domain.model.*
 import com.teamfund.manager.domain.repository.TeamFundRepository
 import com.teamfund.manager.domain.usecase.CalculateExpenseSharesUseCase
+import com.teamfund.manager.domain.usecase.ImportCsvUseCase
 import com.teamfund.manager.domain.usecase.CalculatePlayerBalancesUseCase
 import com.teamfund.manager.domain.usecase.CalculateTeamBalanceUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 
 data class CategoryBreakdown(
     val category: ExpenseCategory,
@@ -56,26 +58,34 @@ class ReportsViewModel(
         viewModelScope.launch {
             userPreferencesRepository.activeTeamIdFlow
                 .flatMapLatest { activeId -> repository.getActiveTeamFlow(activeId) }
-                .collect { activeTeam ->
+                .collectLatest { activeTeam ->
                     if (activeTeam == null) {
                         _uiState.value = ReportsUiState(isLoading = false)
-                        return@collect
+                        return@collectLatest
                     }
 
                     val teamId = activeTeam.id
                     combine(
-                        repository.getActivePlayersFlow(teamId),
+                        repository.getAllPlayersFlow(teamId),
                         repository.getContributionsFlow(teamId),
                         repository.getExpensesFlow(teamId),
                         repository.getAllExpenseSharesFlow(teamId),
-                        repository.getSettlementsFlow(teamId)
-                    ) { players, contribs, expenses, shares, settlements ->
+                        repository.getSettlementsFlow(teamId),
+                        repository.getFinesForTeamFlow(teamId)
+                    ) { flows: Array<Any> ->
+                        val players = flows[0] as List<Player>
+                        val contribs = flows[1] as List<Contribution>
+                        val expenses = flows[2] as List<Expense>
+                        val shares = flows[3] as List<ExpenseShare>
+                        val settlements = flows[4] as List<Settlement>
+                        val fines = flows[5] as List<com.teamfund.manager.domain.model.Fine>
                         val playerSummaries = calculatePlayerBalancesUseCase.execute(
                             players = players,
                             contributions = contribs,
                             expenses = expenses,
                             expenseShares = shares,
-                            settlements = settlements
+                            settlements = settlements,
+                            fines = fines
                         )
 
                         val teamSummary = calculateTeamBalanceUseCase.execute(
@@ -123,59 +133,23 @@ class ReportsViewModel(
         )
     }
 
-    fun importContributionsFromCsv(csvContent: String) {
-        val parsed = CsvImporter.parseContributions(csvContent)
-        val playersByName = uiState.value.players.values.associateBy { it.name.lowercase() }
+    private val importCsvUseCase = ImportCsvUseCase(repository)
 
+    fun importContributionsFromCsv(csvContent: String, onDone: (String) -> Unit) {
         viewModelScope.launch {
             val teamId = _uiState.value.activeTeamId
             if (teamId == 0L) return@launch
-            parsed.forEach { item ->
-                val player = playersByName[item.playerName.lowercase()] ?: return@forEach
-                val contribution = Contribution(
-                    teamId = teamId,
-                    playerId = player.id,
-                    amountMinorUnits = MoneyFormatter.toMinorUnits(item.amount),
-                    date = DateTimeUtils.parseDate(item.dateStr),
-                    purpose = ContributionPurpose.entries.find { it.displayName == item.purposeStr } ?: ContributionPurpose.GENERAL,
-                    notes = item.notes
-                )
-                repository.addContribution(contribution)
-            }
+            val result = importCsvUseCase.importContributions(teamId, csvContent)
+            onDone(result.message("contributions"))
         }
     }
 
-    fun importExpensesFromCsv(csvContent: String) {
-        val parsed = CsvImporter.parseExpenses(csvContent)
-        val players = uiState.value.players.values.toList()
-        val playersByName = players.associateBy { it.name.lowercase() }
-        val playerIds = players.map { it.id }
-
+    fun importExpensesFromCsv(csvContent: String, onDone: (String) -> Unit) {
         viewModelScope.launch {
             val teamId = _uiState.value.activeTeamId
             if (teamId == 0L) return@launch
-            val currencyCode = _uiState.value.currencyCode
-            parsed.forEach { item ->
-                val paidByPlayer = playersByName[item.paidByStr.lowercase()]
-                val amountMinor = MoneyFormatter.toMinorUnits(item.amount)
-                if (amountMinor <= 0L) return@forEach
-                val expense = Expense(
-                    teamId = teamId,
-                    title = item.title,
-                    category = ExpenseCategory.entries.find { it.displayName == item.categoryStr } ?: ExpenseCategory.OTHER,
-                    amountMinorUnits = amountMinor,
-                    currencyCode = currencyCode,
-                    paidByPlayerId = paidByPlayer?.id,
-                    date = DateTimeUtils.parseDate(item.dateStr),
-                    notes = item.notes
-                )
-                val shares = calculateExpenseSharesUseCase.execute(
-                    expenseId = 0L,
-                    totalAmountMinorUnits = amountMinor,
-                    playerIds = playerIds
-                )
-                repository.saveExpenseWithShares(expense, shares)
-            }
+            val result = importCsvUseCase.importExpenses(teamId, _uiState.value.currencyCode, csvContent)
+            onDone(result.message("expenses (splits are not in the file)"))
         }
     }
 

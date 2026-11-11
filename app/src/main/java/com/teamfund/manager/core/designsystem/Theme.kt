@@ -5,6 +5,9 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
+import androidx.compose.material3.Shapes
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -17,31 +20,31 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Cricket & Corporate Sports Brand Colors
-val PitchGreenPrimary = Color(0xFF0F6D21)
+// Charcoal controls, paper-white cards and a lime accent.
+val PitchGreenPrimary = Color(0xFF20231E)
 val OnPrimary = Color(0xFFFFFFFF)
-val PrimaryContainer = Color(0xFFD4F8CD)
-val OnPrimaryContainer = Color(0xFF002205)
+val PrimaryContainer = Color(0xFFD5F58A)
+val OnPrimaryContainer = Color(0xFF23310F)
 
-val SportyNavySecondary = Color(0xFF283B70)
+val SportyNavySecondary = Color(0xFF4F6132)
 val OnSecondary = Color(0xFFFFFFFF)
-val SecondaryContainer = Color(0xFFDBE1FF)
-val OnSecondaryContainer = Color(0xFF00174B)
+val SecondaryContainer = Color(0xFFEBF2E0)
+val OnSecondaryContainer = Color(0xFF29351B)
 
-val TrophyGoldTertiary = Color(0xFF825500)
+val TrophyGoldTertiary = Color(0xFF785500)
 val OnTertiary = Color(0xFFFFFFFF)
-val TertiaryContainer = Color(0xFFFFDDB3)
-val OnTertiaryContainer = Color(0xFF291800)
+val TertiaryContainer = Color(0xFFFFF3D6)
+val OnTertiaryContainer = Color(0xFF523900)
 
-val SurfaceLight = Color(0xFFF6FBF3)
-val OnSurfaceLight = Color(0xFF181D17)
-val SurfaceVariantLight = Color(0xFFDEE5D9)
-val OnSurfaceVariantLight = Color(0xFF424940)
-val SurfaceContainerLowLight = Color(0xFFF0F5ED)
-val SurfaceContainerLight = Color(0xFFEAEFE7)
-val SurfaceContainerHighLight = Color(0xFFE4E9E1)
-val SurfaceContainerHighestLight = Color(0xFFDEE4DC)
-val OutlineLight = Color(0xFF727A6F)
+val SurfaceLight = Color(0xFFFFFFFF)
+val OnSurfaceLight = Color(0xFF20231E)
+val SurfaceVariantLight = Color(0xFFE9ECE7)
+val OnSurfaceVariantLight = Color(0xFF5D6258)
+val SurfaceContainerLowLight = Color(0xFFFFFFFF)
+val SurfaceContainerLight = Color(0xFFF2F4F0)
+val SurfaceContainerHighLight = Color(0xFFEBEEE8)
+val SurfaceContainerHighestLight = Color(0xFFE2E7DC)
+val OutlineLight = Color(0xFF72786A)
 
 val ExpenseError = Color(0xFFBA1A1A)
 val OnError = Color(0xFFFFFFFF)
@@ -61,9 +64,13 @@ private val LightColorScheme = lightColorScheme(
     onTertiary = OnTertiary,
     tertiaryContainer = TertiaryContainer,
     onTertiaryContainer = OnTertiaryContainer,
-    background = SurfaceLight,
+    background = Color(0xFFF3F4F1),
     onBackground = OnSurfaceLight,
     surface = SurfaceLight,
+    surfaceDim = Color(0xFFE2E7DC),
+    surfaceBright = SurfaceLight,
+    surfaceContainerLowest = SurfaceLight,
+    surfaceTint = PitchGreenPrimary,
     onSurface = OnSurfaceLight,
     surfaceVariant = SurfaceVariantLight,
     onSurfaceVariant = OnSurfaceVariantLight,
@@ -75,14 +82,15 @@ private val LightColorScheme = lightColorScheme(
     onError = OnError,
     errorContainer = ErrorContainer,
     onErrorContainer = OnErrorContainer,
-    outline = OutlineLight
+    outline = OutlineLight,
+    outlineVariant = Color(0xFFE2E6DD)
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF88D982),
-    onPrimary = Color(0xFF003908),
-    primaryContainer = Color(0xFF005312),
-    onPrimaryContainer = Color(0xFFB8F5B1),
+    primary = Color(0xFFD5F58A),
+    onPrimary = Color(0xFF23310F),
+    primaryContainer = Color(0xFF384923),
+    onPrimaryContainer = Color(0xFFD5F58A),
     secondary = Color(0xFFBAC3FF),
     onSecondary = Color(0xFF132863),
     secondaryContainer = Color(0xFF2D407A),
@@ -91,17 +99,19 @@ private val DarkColorScheme = darkColorScheme(
     onTertiary = Color(0xFF3C2F00),
     tertiaryContainer = Color(0xFF574500),
     onTertiaryContainer = Color(0xFFFFF0CB),
-    background = Color(0xFF10140F),
-    onBackground = Color(0xFFE0E4DA),
-    surface = Color(0xFF10140F),
-    onSurface = Color(0xFFE0E4DA),
-    surfaceVariant = Color(0xFF424940),
-    onSurfaceVariant = Color(0xFFC2C9BD),
-    surfaceContainerLow = Color(0xFF181D17),
-    surfaceContainer = Color(0xFF1C211B),
-    surfaceContainerHigh = Color(0xFF272B25),
-    surfaceContainerHighest = Color(0xFF31362F),
-    outline = Color(0xFF8C9388),
+    background = Color(0xFF10181D),
+    onBackground = Color(0xFFE1E9EF),
+    surface = Color(0xFF10181D),
+    onSurface = Color(0xFFE1E9EF),
+    surfaceVariant = Color(0xFF34434D),
+    onSurfaceVariant = Color(0xFFBBC9D3),
+    surfaceContainerLowest = Color(0xFF0B1217),
+    surfaceContainerLow = Color(0xFF172127),
+    surfaceContainer = Color(0xFF1D282F),
+    surfaceContainerHigh = Color(0xFF26333B),
+    surfaceContainerHighest = Color(0xFF314049),
+    outline = Color(0xFF889BA8),
+    outlineVariant = Color(0xFF34434D),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005),
     errorContainer = Color(0xFF93000A),
@@ -111,10 +121,10 @@ private val DarkColorScheme = darkColorScheme(
 val AppTypography = Typography(
     displayLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Bold,
-        fontSize = 44.sp,
-        lineHeight = 52.sp,
-        letterSpacing = (-0.25).sp
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 38.sp,
+        lineHeight = 46.sp,
+        letterSpacing = (-1).sp
     ),
     headlineLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -174,6 +184,13 @@ fun TeamFundTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = AppTypography,
+        shapes = Shapes(
+            extraSmall = RoundedCornerShape(8.dp),
+            small = RoundedCornerShape(12.dp),
+            medium = RoundedCornerShape(20.dp),
+            large = RoundedCornerShape(24.dp),
+            extraLarge = RoundedCornerShape(28.dp)
+        ),
         content = content
     )
 }

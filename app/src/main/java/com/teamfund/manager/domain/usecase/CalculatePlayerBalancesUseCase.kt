@@ -3,6 +3,7 @@ package com.teamfund.manager.domain.usecase
 import com.teamfund.manager.domain.model.Contribution
 import com.teamfund.manager.domain.model.Expense
 import com.teamfund.manager.domain.model.ExpenseShare
+import com.teamfund.manager.domain.model.Fine
 import com.teamfund.manager.domain.model.Player
 import com.teamfund.manager.domain.model.PlayerFinancialSummary
 import com.teamfund.manager.domain.model.Settlement
@@ -24,13 +25,15 @@ class CalculatePlayerBalancesUseCase {
         contributions: List<Contribution>,
         expenses: List<Expense>,
         expenseShares: List<ExpenseShare>,
-        settlements: List<Settlement>
+        settlements: List<Settlement>,
+        fines: List<Fine> = emptyList()
     ): List<PlayerFinancialSummary> {
         val contributionMap = contributions.groupBy { it.playerId }
         val expensesPaidMap = expenses.filter { it.paidByPlayerId != null }.groupBy { it.paidByPlayerId!! }
         val sharesMap = expenseShares.groupBy { it.playerId }
         val settlementsPaidMap = settlements.groupBy { it.fromPlayerId }
         val settlementsReceivedMap = settlements.filter { it.toPlayerId != null }.groupBy { it.toPlayerId!! }
+        val finesMap = fines.groupBy { it.playerId }
 
         return players.map { player ->
             val totalContrib = contributionMap[player.id]?.sumOf { it.amountMinorUnits } ?: 0L
@@ -38,16 +41,16 @@ class CalculatePlayerBalancesUseCase {
             
             val playerShares = sharesMap[player.id] ?: emptyList()
             val personalSharesTotal = playerShares.sumOf { it.shareAmountMinorUnits }
-            val personalSharesPaid = playerShares.sumOf { it.paidAmountMinorUnits }
+            // Count a share as paid only up to its own amount. Any extra stays in the
+            // settlement total, so an overpayment shows as credit instead of vanishing.
+            val personalSharesPaid = playerShares.sumOf { minOf(it.paidAmountMinorUnits, it.shareAmountMinorUnits) }
             val unpaidDues = (personalSharesTotal - personalSharesPaid).coerceAtLeast(0L)
 
             val setPaid = settlementsPaidMap[player.id]?.sumOf { it.amountMinorUnits } ?: 0L
             val setReceived = settlementsReceivedMap[player.id]?.sumOf { it.amountMinorUnits } ?: 0L
+            val totalCharges = finesMap[player.id]?.sumOf { it.amountMinorUnits } ?: 0L
 
-            // REDEFINED Net Balance: Total Pool Contribution (Contributions + Money given to fund)
-            // It no longer automatically subtracts UNPAID expense shares.
-            // Balance = Contributions + Money Paid on Behalf + Settlements Paid - Settlements Received - (Paid Shares)
-            val netBalance = totalContrib + totalPaidOnBehalf + setPaid - setReceived - personalSharesPaid
+            val netBalance = totalContrib + totalPaidOnBehalf + setPaid - setReceived - personalSharesPaid - totalCharges
 
             PlayerFinancialSummary(
                 player = player,
@@ -56,6 +59,7 @@ class CalculatePlayerBalancesUseCase {
                 personalExpenseSharesMinorUnits = personalSharesTotal,
                 settlementsPaidMinorUnits = setPaid,
                 settlementsReceivedMinorUnits = setReceived,
+                totalChargesMinorUnits = totalCharges,
                 netBalanceMinorUnits = netBalance,
                 unpaidExpenseSharesMinorUnits = unpaidDues
             )

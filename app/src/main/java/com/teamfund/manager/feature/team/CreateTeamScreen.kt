@@ -1,5 +1,13 @@
 package com.teamfund.manager.feature.team
 
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+
+import com.teamfund.manager.core.designsystem.TeamFundTextField
+import com.teamfund.manager.core.designsystem.TeamFundButton
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -40,14 +48,16 @@ fun CreateTeamScreen(
     userPreferencesRepository: UserPreferencesRepository,
     onBackClick: () -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var selectedSport by remember { mutableStateOf(SportType.CRICKET) }
-    var selectedCurrency by remember { mutableStateOf("USD") }
+    var name by rememberSaveable { mutableStateOf("") }
+    var selectedSport by rememberSaveable { mutableStateOf(SportType.CRICKET) }
+    var selectedCurrency by rememberSaveable { mutableStateOf("USD") }
 
-    var sportExpanded by remember { mutableStateOf(false) }
-    var currencyExpanded by remember { mutableStateOf(false) }
+    var sportExpanded by rememberSaveable { mutableStateOf(false) }
+    var currencyExpanded by rememberSaveable { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
+    // Blocks a second tap from creating a duplicate team while the first save runs.
+    var isCreating by remember { mutableStateOf(false) }
     val currencies = listOf("USD", "EUR", "GBP", "PKR", "INR", "AUD", "CAD")
 
     Scaffold(
@@ -63,12 +73,14 @@ fun CreateTeamScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(text = "Team Setup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
-            OutlinedTextField(
+            TeamFundTextField(
                 value = name,
                 onValueChange = { name = it },
                 label = { Text("Team Name *") },
@@ -80,7 +92,7 @@ fun CreateTeamScreen(
             )
 
             ExposedDropdownMenuBox(expanded = sportExpanded, onExpandedChange = { sportExpanded = !sportExpanded }) {
-                OutlinedTextField(
+                TeamFundTextField(
                     value = selectedSport.displayName,
                     onValueChange = {},
                     readOnly = true,
@@ -101,7 +113,7 @@ fun CreateTeamScreen(
             }
 
             ExposedDropdownMenuBox(expanded = currencyExpanded, onExpandedChange = { currencyExpanded = !currencyExpanded }) {
-                OutlinedTextField(
+                TeamFundTextField(
                     value = selectedCurrency,
                     onValueChange = {},
                     readOnly = true,
@@ -123,9 +135,10 @@ fun CreateTeamScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
+            TeamFundButton(
                 onClick = {
-                    if (name.isNotBlank()) {
+                    if (name.isNotBlank() && !isCreating) {
+                        isCreating = true
                         scope.launch {
                             val newTeam = Team(
                                 name = name,
@@ -143,7 +156,7 @@ fun CreateTeamScreen(
                     .fillMaxWidth()
                     .height(52.dp)
                     .testTag("save_team_button"),
-                enabled = name.isNotBlank()
+                enabled = name.isNotBlank() && !isCreating
             ) {
                 Text("Create Team")
             }
