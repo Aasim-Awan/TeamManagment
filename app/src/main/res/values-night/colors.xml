@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window and launch (splash) background. Matches the Compose dark theme background. -->
+    <color name="app_background">#FF181C16</color>
+</resources>

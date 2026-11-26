@@ -42,8 +42,7 @@ import com.teamfund.manager.core.designsystem.TeamFundTopBar
 fun TeamRosterScreen(
     viewModel: TeamViewModel,
     onNavigateToAddPlayer: () -> Unit,
-    onNavigateToPlayerDetail: (Long) -> Unit,
-    onBackClick: () -> Unit
+    onNavigateToPlayerDetail: (Long) -> Unit
 ) {
     val state by viewModel.rosterState.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
@@ -60,8 +59,6 @@ fun TeamRosterScreen(
         topBar = {
             TeamFundTopBar(
                 title = "Players & balances",
-                showBackButton = true,
-                onBackClick = onBackClick
             )
         },
         floatingActionButton = {

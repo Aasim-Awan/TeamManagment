@@ -103,13 +103,15 @@ class TeamFundRepositoryImpl(
             playerDao.countExpenseSharesForPlayer(playerId) > 0 ||
                 playerDao.countContributionsForPlayer(playerId) > 0 ||
                 playerDao.countSettlementsForPlayer(playerId) > 0 ||
-                playerDao.countFinesForPlayer(playerId) > 0
+                playerDao.countFinesForPlayer(playerId) > 0 ||
+                playerDao.countExpensesPaidByPlayer(playerId) > 0
         if (hasHistory) {
             playerDao.deactivatePlayer(playerId)
             return@withTransaction PlayerSafeDeleteOutcome.DEACTIVATED_HAS_HISTORY
         }
         playerDao.deleteMatchPlayersForPlayer(playerId)
         playerDao.deleteMatchStatsForPlayer(playerId)
+        playerDao.clearPlayerOfTheMatch(playerId)
         playerDao.deletePlayer(playerId)
         PlayerSafeDeleteOutcome.HARD_DELETED
     }
@@ -183,16 +185,11 @@ class TeamFundRepositoryImpl(
             
             val reconciledShares = sharesEntities.map { newShare ->
                 val matchingOldShare = existingShares.find { it.playerId == newShare.playerId }
-                if (matchingOldShare != null) {
-                    var paidAmount = matchingOldShare.paidAmountMinorUnits
-                    
-                    // IF the user was previously FULLY settled, and the expense was updated,
-                    // we assume their "settled" status is stickier than the exact amount.
-                    // We update their paidAmount to match the new share if they were already marked settled.
-                    if (matchingOldShare.isSettled) {
-                        paidAmount = newShare.shareAmountMinorUnits
-                    }
-
+                // The Team Fund's own share (player 0) is recalculated, never carried over.
+                if (matchingOldShare != null && newShare.playerId != 0L) {
+                    // Keep what the player really paid. Raising the expense leaves the rest unpaid;
+                    // lowering it turns any extra into credit through the balance calculation.
+                    val paidAmount = matchingOldShare.paidAmountMinorUnits
                     val isNowSettled = paidAmount >= newShare.shareAmountMinorUnits
                     newShare.copy(
                         paidAmountMinorUnits = paidAmount,
@@ -204,7 +201,9 @@ class TeamFundRepositoryImpl(
                 }
             }
             
-            expenseDao.updateExpenseWithShares(expenseEntity, reconciledShares)
+            // Keep the original creation time when editing.
+            val createdAt = existingExpense?.expense?.createdAt ?: expenseEntity.createdAt
+            expenseDao.updateExpenseWithShares(expenseEntity.copy(createdAt = createdAt, updatedAt = System.currentTimeMillis()), reconciledShares)
             expense.id
         }
     }
@@ -231,6 +230,13 @@ class TeamFundRepositoryImpl(
 
     override suspend fun deleteContribution(contributionId: Long) {
         contributionDao.deleteContributionById(contributionId)
+    }
+
+    override suspend fun updateContribution(contributionId: Long, amountMinorUnits: Long, notes: String?, date: Long) {
+        val existing = contributionDao.getContributionById(contributionId) ?: return
+        contributionDao.updateContribution(
+            existing.copy(amountMinorUnits = amountMinorUnits, notes = notes, date = date, updatedAt = System.currentTimeMillis())
+        )
     }
 
     override fun getSettlementsFlow(teamId: Long): Flow<List<Settlement>> {
@@ -260,6 +266,8 @@ class TeamFundRepositoryImpl(
         database.withTransaction {
             val settlement = settlementDao.getSettlementById(settlementId) ?: return@withTransaction
             settlementDao.deleteSettlementById(settlementId)
+            // Only player-to-team payments were applied to a share, so only they are taken back.
+            if (settlement.adjustmentKind != SettlementAdjustmentKind.PLAYER_TO_TEAM) return@withTransaction
             val expenseId = settlement.expenseId ?: return@withTransaction
             val playerId = when {
                 settlement.fromPlayerId != 0L -> settlement.fromPlayerId
@@ -269,6 +277,24 @@ class TeamFundRepositoryImpl(
 
             // Decrement the paid amount instead of full reset to handle partial settlements correctly
             expenseDao.decrementSharePayment(expenseId, playerId, settlement.amountMinorUnits)
+        }
+    }
+
+    override suspend fun updateSettlement(settlementId: Long, amountMinorUnits: Long, note: String?, date: Long) {
+        database.withTransaction {
+            val old = settlementDao.getSettlementById(settlementId) ?: return@withTransaction
+            val expenseId = old.expenseId
+            val playerId = when {
+                old.fromPlayerId != 0L -> old.fromPlayerId
+                else -> old.toPlayerId
+            }
+            // Keep the linked share's paid amount in step with the payment.
+            if (expenseId != null && playerId != null && old.adjustmentKind == SettlementAdjustmentKind.PLAYER_TO_TEAM) {
+                val delta = amountMinorUnits - old.amountMinorUnits
+                if (delta > 0) expenseDao.incrementSharePayment(expenseId, playerId, delta, System.currentTimeMillis())
+                if (delta < 0) expenseDao.decrementSharePayment(expenseId, playerId, -delta)
+            }
+            settlementDao.insertSettlement(old.copy(amountMinorUnits = amountMinorUnits, note = note, date = date))
         }
     }
 
@@ -402,6 +428,19 @@ class TeamFundRepositoryImpl(
         fineDao.insertFine(fine.copy(settlementId = settlementId).toEntity())
     }
 
+    override suspend fun updateFine(fineId: Long, amountMinorUnits: Long, note: String?, date: Long) {
+        database.withTransaction {
+            val fine = fineDao.getFineById(fineId) ?: return@withTransaction
+            fineDao.insertFine(fine.copy(amountMinorUnits = amountMinorUnits, note = note, date = date))
+            // A charge recorded as paid has its own payment; keep both amounts equal.
+            fine.settlementId?.let { id ->
+                settlementDao.getSettlementById(id)?.let { s ->
+                    settlementDao.insertSettlement(s.copy(amountMinorUnits = amountMinorUnits, date = date))
+                }
+            }
+        }
+    }
+
     override suspend fun addFine(fine: Fine): Long {
         return fineDao.insertFine(fine.toEntity())
     }
@@ -426,8 +465,12 @@ class TeamFundRepositoryImpl(
 
     override suspend fun adjustInventoryItem(itemId: Long, delta: Int, movement: InventoryMovement) {
         database.withTransaction {
-            inventoryDao.adjustQuantity(itemId, delta)
-            inventoryDao.insertMovement(movement.toEntity())
+            val current = inventoryDao.getQuantity(itemId) ?: return@withTransaction
+            // Stock never goes below 0; record only the change that actually happened.
+            val applied = delta.coerceAtLeast(-current)
+            if (applied == 0) return@withTransaction
+            inventoryDao.adjustQuantity(itemId, applied)
+            inventoryDao.insertMovement(movement.copy(delta = applied).toEntity())
         }
     }
 

@@ -27,6 +27,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import com.teamfund.manager.domain.model.MatchTossWinner
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -85,6 +87,9 @@ fun AddMatchScreen(
     var chargeMatchFee by rememberSaveable { mutableStateOf(false) }
     var createGroundExpense by rememberSaveable { mutableStateOf(false) }
     var selectedXi by rememberSaveable { mutableStateOf(setOf<Long>()) }
+    var tossWinner by rememberSaveable { mutableStateOf("") }
+    var playerOfTheMatchId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var potmExpanded by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(sport, state.isLoading) {
         if (!state.isLoading && !isEdit && !didApplySportDefault) {
@@ -106,6 +111,8 @@ fun AddMatchScreen(
                 selectedDateMillis = it.date
                 matchFeeText = MoneyFormatter.fromMinorUnits(it.matchFeeMinorUnits)
                 groundFeeText = MoneyFormatter.fromMinorUnits(it.groundFeeMinorUnits)
+                tossWinner = it.tossWinner.orEmpty()
+                playerOfTheMatchId = it.playerOfTheMatchId
                 didLoadEdit = true
             }
         }
@@ -249,6 +256,37 @@ fun AddMatchScreen(
                         singleLine = true
                     )
                 }
+
+                Text("Toss", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("" to "Not recorded", MatchTossWinner.OUR_TEAM to "We won", MatchTossWinner.OPPONENT to "They won").forEach { (value, label) ->
+                        FilterChip(
+                            selected = tossWinner == value,
+                            onClick = { tossWinner = value },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+
+                ExposedDropdownMenuBox(expanded = potmExpanded, onExpandedChange = { potmExpanded = !potmExpanded }) {
+                    TeamFundTextField(
+                        value = state.players.find { it.id == playerOfTheMatchId }?.name ?: "None",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Player of the match") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = potmExpanded) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
+                            .testTag("potm_selector")
+                    )
+                    ExposedDropdownMenu(expanded = potmExpanded, onDismissRequest = { potmExpanded = false }) {
+                        DropdownMenuItem(text = { Text("None") }, onClick = { playerOfTheMatchId = null; potmExpanded = false })
+                        state.players.forEach { player ->
+                            DropdownMenuItem(text = { Text(player.name) }, onClick = { playerOfTheMatchId = player.id; potmExpanded = false })
+                        }
+                    }
+                }
             }
 
             TeamFundTextField(
@@ -352,8 +390,8 @@ fun AddMatchScreen(
                             teamScore = teamScore.ifBlank { null },
                             opponentScore = opponentScore.ifBlank { null },
                             overs = formatText.ifBlank { null },
-                            tossWinner = null,
-                            playerOfTheMatchId = null,
+                            tossWinner = tossWinner.ifBlank { null }.takeIf { selectedResult != MatchResult.UPCOMING },
+                            playerOfTheMatchId = playerOfTheMatchId.takeIf { selectedResult != MatchResult.UPCOMING },
                             notes = notes.ifBlank { null },
                             seasonId = state.activeSeason?.id,
                             matchFeeMinorUnits = MoneyFormatter.toMinorUnits(matchFeeText),

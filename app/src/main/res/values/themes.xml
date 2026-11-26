@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <!--
+        Window theme only; the UI is drawn by Compose (TeamFundTheme).
+        windowBackground matches the app background so cold start has no white or black flash.
+        On Android 12+ the system splash screen uses this background with the launcher icon.
+    -->
+    <style name="Theme.MyApplication" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/app_background</item>
+    </style>
 </resources>

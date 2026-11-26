@@ -1,5 +1,6 @@
 package com.teamfund.manager.feature.settings
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.teamfund.manager.core.designsystem.TeamFundTextField
 import com.teamfund.manager.core.designsystem.TeamFundButton
 
@@ -731,7 +732,7 @@ private fun SeasonsSheet(
     onCreate: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var newSeasonName by remember { mutableStateOf("") }
+    var newSeasonName by rememberSaveable { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             Modifier
@@ -796,8 +797,8 @@ private fun DuesSheet(
     onAdd: (String, Long) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var newDueName by remember { mutableStateOf("") }
-    var newDueAmount by remember { mutableStateOf("") }
+    var newDueName by rememberSaveable { mutableStateOf("") }
+    var newDueAmount by rememberSaveable { mutableStateOf("") }
     val now = System.currentTimeMillis()
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(

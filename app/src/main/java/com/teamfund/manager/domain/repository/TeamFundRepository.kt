@@ -55,6 +55,8 @@ interface TeamFundRepository {
     suspend fun addFineWithSettlement(fine: Fine, recordPayment: Boolean): Long
     suspend fun addFine(fine: Fine): Long
     suspend fun deleteFine(fineId: Long)
+    /** Changes amount, note and date of a charge; a charge recorded as paid updates its payment too. */
+    suspend fun updateFine(fineId: Long, amountMinorUnits: Long, note: String?, date: Long)
 
     fun getInventoryItemsFlow(teamId: Long): Flow<List<InventoryItem>>
     suspend fun saveInventoryItem(item: InventoryItem): Long
@@ -77,6 +79,8 @@ interface TeamFundRepository {
     fun getContributionsForPlayerFlow(playerId: Long): Flow<List<Contribution>>
     suspend fun addContribution(contribution: Contribution): Long
     suspend fun deleteContribution(contributionId: Long)
+    /** Changes amount, note and date of a contribution. */
+    suspend fun updateContribution(contributionId: Long, amountMinorUnits: Long, notes: String?, date: Long)
 
     fun getSettlementsFlow(teamId: Long): Flow<List<Settlement>>
     fun getSettlementsForPlayerFlow(playerId: Long): Flow<List<Settlement>>
@@ -87,6 +91,8 @@ interface TeamFundRepository {
      */
     suspend fun recordPlayerPayment(settlement: Settlement, shareId: Long?, expenseId: Long?): Long
     suspend fun deleteSettlement(settlementId: Long)
+    /** Changes amount, note and date of a payment; a linked expense share is adjusted by the difference. */
+    suspend fun updateSettlement(settlementId: Long, amountMinorUnits: Long, note: String?, date: Long)
     suspend fun markExpenseShareSettled(shareId: Long)
     suspend fun markPlayerExpenseShareSettled(expenseId: Long, playerId: Long)
     suspend fun recordExpenseSharePayment(expenseId: Long, playerId: Long, amountMinorUnits: Long)

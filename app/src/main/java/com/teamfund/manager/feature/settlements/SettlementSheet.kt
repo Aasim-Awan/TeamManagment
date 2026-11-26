@@ -1,11 +1,14 @@
 package com.teamfund.manager.feature.settlements
 
+import com.teamfund.manager.core.designsystem.DatePickerField
 import com.teamfund.manager.core.designsystem.TeamFundTextField
 import com.teamfund.manager.core.designsystem.TeamFundButton
 import com.teamfund.manager.core.designsystem.TeamFundFilterChip
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -33,7 +36,7 @@ fun SettleDebtSheet(
     currencyCode: String,
     expenses: List<Expense>,
     onDismiss: () -> Unit,
-    onSettle: (Long, String, SettleAdjustmentMode, Long?) -> Unit,
+    onSettle: (amountMinorUnits: Long, note: String, mode: SettleAdjustmentMode, expenseId: Long?, date: Long) -> Unit,
     initialExpenseId: Long? = null,
     isSaving: Boolean = false
 ) {
@@ -47,6 +50,7 @@ fun SettleDebtSheet(
         mutableStateOf(MoneyFormatter.fromMinorUnits(initialAmount))
     }
     var note by remember { mutableStateOf("Settlement") }
+    var dateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
 
     var adjustmentMode by remember {
         mutableStateOf(
@@ -92,6 +96,8 @@ fun SettleDebtSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // Scrolls on small screens and with the keyboard open.
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -312,6 +318,13 @@ fun SettleDebtSheet(
                 shape = RoundedCornerShape(12.dp)
             )
 
+            DatePickerField(
+                selectedDateMillis = dateMillis,
+                onDateSelected = { dateMillis = it },
+                label = "Payment date",
+                testTag = "settlement_date_picker"
+            )
+
             val amountMinorPreview = MoneyFormatter.toMinorUnits(amountText)
             val positionDelta = when {
                 amountMinorPreview <= 0L -> 0L
@@ -361,7 +374,7 @@ fun SettleDebtSheet(
                 onClick = {
                     val amountMinor = MoneyFormatter.toMinorUnits(amountText)
                     if (amountMinor > 0) {
-                        onSettle(amountMinor, note, adjustmentMode, selectedExpenseId)
+                        onSettle(amountMinor, note, adjustmentMode, selectedExpenseId, dateMillis)
                     }
                 },
                 modifier = Modifier

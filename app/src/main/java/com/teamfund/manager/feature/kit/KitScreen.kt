@@ -1,5 +1,6 @@
 package com.teamfund.manager.feature.kit
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,7 +39,7 @@ fun KitScreen(
     onBackClick: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var newItemName by remember { mutableStateOf("") }
+    var newItemName by rememberSaveable { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -88,7 +89,7 @@ fun KitScreen(
                                 )
                             }
                             Row {
-                                IconButton(onClick = { viewModel.adjustStock(item.id, -1, "Adjusted") }) {
+                                IconButton(onClick = { viewModel.adjustStock(item.id, -1, "Adjusted") }, enabled = item.quantity > 0) {
                                     Icon(Icons.Default.Remove, contentDescription = "Decrease")
                                 }
                                 IconButton(onClick = { viewModel.adjustStock(item.id, 1, "Adjusted") }) {

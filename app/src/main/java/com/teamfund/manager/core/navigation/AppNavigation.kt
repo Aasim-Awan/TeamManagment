@@ -63,19 +63,13 @@ fun AppNavigation(
                 onNavigateToAddExpense = { navController.navigate(Screen.AddExpense.createRoute()) },
                 onNavigateToAddContribution = { navController.navigate(Screen.AddContribution.createRoute()) },
                 onNavigateToSettlements = { navController.navigate(Screen.Settlements.route) },
-                onNavigateToMatches = { navController.navigate(Screen.Matches.route) },
-                onNavigateToTeam = { navController.navigate(Screen.TeamRoster.route) },
+                onNavigateToMatches = { navController.navigateToTab(Screen.Matches.route) },
+                onNavigateToTeam = { navController.navigateToTab(Screen.TeamRoster.route) },
                 onNavigateToExpenses = { navController.navigate(Screen.Expenses.route) },
                 // All expenses is a bottom-bar tab, so open it the same way the bar does.
-                onNavigateToAllExpenses = {
-                    navController.navigate(Screen.AllExpenses.route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
+                onNavigateToAllExpenses = { navController.navigateToTab(Screen.AllExpenses.route) },
                 onNavigateToContributions = { navController.navigate(Screen.Contributions.route) },
-                onNavigateToReports = { navController.navigate(Screen.Reports.route) },
+                onNavigateToReports = { navController.navigateToTab(Screen.Reports.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onNavigateToMatchDetail = { matchId -> navController.navigate(Screen.MatchDetail.createRoute(matchId)) }
             )
@@ -89,8 +83,7 @@ fun AppNavigation(
             MatchesScreen(
                 viewModel = viewModel,
                 onNavigateToAddMatch = { navController.navigate(Screen.AddMatch.createRoute()) },
-                onNavigateToMatchDetail = { matchId -> navController.navigate(Screen.MatchDetail.createRoute(matchId)) },
-                onBackClick = { navController.popBackStack() }
+                onNavigateToMatchDetail = { matchId -> navController.navigate(Screen.MatchDetail.createRoute(matchId)) }
             )
         }
 
@@ -141,8 +134,7 @@ fun AppNavigation(
             TeamRosterScreen(
                 viewModel = viewModel,
                 onNavigateToAddPlayer = { navController.navigate(Screen.AddPlayer.createRoute()) },
-                onNavigateToPlayerDetail = { playerId -> navController.navigate(Screen.PlayerDetail.createRoute(playerId)) },
-                onBackClick = { navController.popBackStack() }
+                onNavigateToPlayerDetail = { playerId -> navController.navigate(Screen.PlayerDetail.createRoute(playerId)) }
             )
         }
 
@@ -320,10 +312,7 @@ fun AppNavigation(
                     appContainer.calculateExpenseSharesUseCase
                 )
             )
-            ReportsScreen(
-                viewModel = viewModel,
-                onBackClick = { navController.popBackStack() }
-            )
+            ReportsScreen(viewModel = viewModel)
         }
 
         // 14. Settings Screen
@@ -358,5 +347,14 @@ fun AppNavigation(
                 onBackClick = { navController.popBackStack() }
             )
         }
+    }
+}
+
+/** Opens a bottom-bar tab the same way the bar does: one copy per tab, state saved and restored. */
+fun NavHostController.navigateToTab(route: String) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
     }
 }

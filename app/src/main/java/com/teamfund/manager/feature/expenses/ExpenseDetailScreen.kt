@@ -39,6 +39,7 @@ import com.teamfund.manager.core.designsystem.LoadingView
 import com.teamfund.manager.core.designsystem.MoneyText
 import com.teamfund.manager.core.designsystem.TeamFundTopBar
 import com.teamfund.manager.core.util.DateTimeUtils
+import com.teamfund.manager.core.util.MoneyFormatter
 import com.teamfund.manager.domain.model.Expense
 import com.teamfund.manager.domain.model.ExpenseShare
 import com.teamfund.manager.domain.model.Player
@@ -121,7 +122,7 @@ fun ExpenseDetailScreen(
                                 Text("Amount", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 MoneyText(
                                     minorUnits = expense.amountMinorUnits,
-                                    currencyCode = expense.currencyCode,
+                                    currencyCode = state.currencyCode,
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.error
@@ -165,9 +166,20 @@ fun ExpenseDetailScreen(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
+                        val collectedFromPlayers = expense.shares.filter { it.playerId != 0L }.sumOf { it.shareAmountMinorUnits }
+                        val extraToFund = collectedFromPlayers - expense.amountMinorUnits
+                        if (extraToFund > 0L) {
+                            Text(
+                                text = "Collected from players: ${MoneyFormatter.format(collectedFromPlayers, state.currencyCode)} · " +
+                                    "Extra to Team Fund: ${MoneyFormatter.format(extraToFund, state.currencyCode)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
                     }
 
-                    items(expense.shares) { share ->
+                    items(expense.shares, key = { it.id }) { share ->
                         val player = if (share.playerId == 0L) {
                             Player(
                                 id = 0L,
@@ -183,7 +195,7 @@ fun ExpenseDetailScreen(
                             ExpenseShareItem(
                                 player = player,
                                 share = share,
-                                currencyCode = expense.currencyCode,
+                                currencyCode = state.currencyCode,
                                 onSettleClick = {
                                     settlingShare = player to share
                                 }
@@ -203,7 +215,7 @@ fun ExpenseDetailScreen(
                             )
                         }
 
-                        items(expenseSettlements) { settlement ->
+                        items(expenseSettlements, key = { it.id }) { settlement ->
                             val fromPlayer = if (settlement.fromPlayerId == 0L) "Team Fund" 
                                             else state.allPlayers.find { it.id == settlement.fromPlayerId }?.name ?: "Member"
                             
@@ -224,7 +236,7 @@ fun ExpenseDetailScreen(
                                             Text(text = settlement.note, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                         }
                                     }
-                                    MoneyText(minorUnits = settlement.amountMinorUnits, currencyCode = expense.currencyCode, fontWeight = FontWeight.Bold)
+                                    MoneyText(minorUnits = settlement.amountMinorUnits, currencyCode = state.currencyCode, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -237,8 +249,17 @@ fun ExpenseDetailScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Expense") },
-            text = { Text("Are you sure you want to delete this expense? This action cannot be undone.") },
+            title = { Text("Delete expense?") },
+            text = {
+                val payments = state.settlements.count { it.expenseId == expenseId }
+                Text(
+                    if (payments > 0) {
+                        "This deletes the expense and its player shares. $payments payment${if (payments == 1) "" else "s"} recorded against it will stay as credit for those players, so the team will show it owes them. Revoke the payments first if they should not count. This cannot be undone."
+                    } else {
+                        "This deletes the expense and its player shares. This cannot be undone."
+                    }
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -267,13 +288,14 @@ fun ExpenseDetailScreen(
         )
         SettleDebtSheet(
             playerSummary = playerSummary,
-            currencyCode = expense?.currencyCode ?: "USD",
+            currencyCode = state.currencyCode,
             expenses = state.expenses,
             onDismiss = { settlingShare = null },
             isSaving = isSaving,
             initialExpenseId = expenseId,
-            onSettle = { amount, note, mode, _ ->
+            onSettle = { amount, note, mode, _, date ->
                 viewModel.settleAdjustment(
+                    date = date,
                     playerId = player.id,
                     mode = mode,
                     amountMinorUnits = amount,

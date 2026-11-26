@@ -114,6 +114,9 @@ interface InventoryDao {
     @Update
     suspend fun updateItem(item: InventoryItemEntity)
 
+    @Query("SELECT quantity FROM inventory_items WHERE id = :itemId")
+    suspend fun getQuantity(itemId: Long): Int?
+
     @Query("UPDATE inventory_items SET quantity = quantity + :delta WHERE id = :itemId")
     suspend fun adjustQuantity(itemId: Long, delta: Int)
 

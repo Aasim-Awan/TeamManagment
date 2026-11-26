@@ -1,5 +1,7 @@
 package com.teamfund.manager.feature.settlements
 
+import androidx.compose.foundation.clickable
+import com.teamfund.manager.core.designsystem.EditMoneyRecordDialog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -53,6 +55,7 @@ fun SettlementsScreen(
     
     var showSettleDialog by remember { mutableStateOf<PlayerFinancialSummary?>(null) }
     var settlementToRevoke by remember { mutableStateOf<Settlement?>(null) }
+    var settlementToEdit by remember { mutableStateOf<Settlement?>(null) }
 
     Scaffold(
         topBar = {
@@ -104,7 +107,7 @@ fun SettlementsScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                items(pendingPlayers) { summary ->
+                                items(pendingPlayers, key = { it.player.id }) { summary ->
                                     BalanceStatusCard(
                                         playerSummary = summary,
                                         currencyCode = state.currencyCode,
@@ -127,7 +130,7 @@ fun SettlementsScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                items(state.settlementsHistory) { settlement ->
+                                items(state.settlementsHistory, key = { it.id }) { settlement ->
                                     val fromPlayer = if (settlement.fromPlayerId == 0L) {
                                         "Team Fund"
                                     } else {
@@ -141,6 +144,7 @@ fun SettlementsScreen(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .clickable { settlementToEdit = settlement }
                                             .padding(12.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
@@ -182,8 +186,9 @@ fun SettlementsScreen(
             expenses = state.expenses,
             onDismiss = { showSettleDialog = null },
             isSaving = isSaving,
-            onSettle = { amount, note, mode, expenseId ->
+            onSettle = { amount, note, mode, expenseId, date ->
                 viewModel.settleAdjustment(
+                    date = date,
                     playerId = summary.player.id,
                     mode = mode,
                     amountMinorUnits = amount,
@@ -192,6 +197,26 @@ fun SettlementsScreen(
                     onSuccess = { showSettleDialog = null }
                 )
             }
+        )
+    }
+
+    settlementToEdit?.let { settlement ->
+        EditMoneyRecordDialog(
+            title = "Edit payment",
+            initialAmountMinorUnits = settlement.amountMinorUnits,
+            initialNote = settlement.note,
+            initialDate = settlement.date,
+            currencyCode = state.currencyCode,
+            onSave = { amount, note, date ->
+                viewModel.updateSettlement(settlement.id, amount, note, date)
+                settlementToEdit = null
+            },
+            onDismiss = { settlementToEdit = null },
+            onDelete = {
+                settlementToEdit = null
+                settlementToRevoke = settlement
+            },
+            deleteLabel = "Revoke"
         )
     }
 

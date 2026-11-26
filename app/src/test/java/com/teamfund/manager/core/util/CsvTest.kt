@@ -53,4 +53,38 @@ class CsvTest {
         assertEquals(1250L, row.amountMinorUnits)
         assertEquals("Paid \"cash\"", row.notes)
     }
+
+    @Test
+    fun fullReport_everyRowHasTheSameColumns() {
+        val tricky = Player(id = 1L, teamId = 1L, name = "Sam \"The Wall\", Lee")
+        val summary = com.teamfund.manager.domain.usecase.CalculatePlayerBalancesUseCase().execute(
+            players = listOf(tricky),
+            contributions = listOf(Contribution(teamId = 1L, playerId = 1L, amountMinorUnits = 1000L)),
+            expenses = emptyList(),
+            expenseShares = emptyList(),
+            settlements = emptyList()
+        )
+        val csv = CsvExporter.exportFullReport(
+            teamName = "Northside, Cricket",
+            summary = com.teamfund.manager.domain.model.TeamFinancialSummary(teamFundBalanceMinorUnits = 1000L),
+            playerSummaries = summary,
+            players = mapOf(1L to tricky),
+            expenses = listOf(com.teamfund.manager.domain.model.Expense(teamId = 1L, title = "=cmd()", amountMinorUnits = 500L, notes = "line one\nline two")),
+            contributions = listOf(Contribution(teamId = 1L, playerId = 1L, amountMinorUnits = 1000L)),
+            settlements = emptyList(),
+            fines = emptyList(),
+            currencyCode = "EUR"
+        )
+
+        assertEquals(true, csv.startsWith(Csv.BOM))
+        val lines = csv.removePrefix(Csv.BOM).trimEnd().lines()
+        val rows = lines.map { CsvImporter.parseCsvLine(it) }
+        assertEquals(CsvExporter.FULL_REPORT_HEADER, rows.first())
+        rows.forEach { assertEquals(CsvExporter.FULL_REPORT_HEADER.size, it.size) }
+        val expense = rows.single { it[0] == "Expense" }
+        assertEquals("=cmd()", expense[2])
+        assertEquals("-5.00", expense[5])
+        assertEquals("line one line two", expense[7])
+        assertEquals("Sam \"The Wall\", Lee", rows.single { it[0] == "Balance" }[3])
+    }
 }

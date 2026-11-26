@@ -35,6 +35,8 @@ data class ReportsUiState(
     val contributions: List<Contribution> = emptyList(),
     val expenses: List<Expense> = emptyList(),
     val players: Map<Long, Player> = emptyMap(),
+    val settlements: List<Settlement> = emptyList(),
+    val fines: List<Fine> = emptyList(),
     val activeTeamId: Long = 0L
 )
 
@@ -114,6 +116,8 @@ class ReportsViewModel(
                             contributions = contribs,
                             expenses = expenses,
                             players = players.associateBy { it.id },
+                            settlements = settlements,
+                            fines = fines,
                             activeTeamId = teamId
                         )
                     }.collect { newState ->
@@ -123,15 +127,27 @@ class ReportsViewModel(
         }
     }
 
-    fun exportMasterReport(): String {
+    /** Full report: one fixed-column table with summary, balances and every money record. */
+    fun exportFullReport(): String {
         val state = uiState.value
-        return CsvExporter.exportMasterReport(
+        return CsvExporter.exportFullReport(
             teamName = state.teamName,
+            summary = state.financialSummary,
+            playerSummaries = state.playerSummaries,
+            players = state.players,
             expenses = state.expenses,
-            players = state.playerSummaries,
+            contributions = state.contributions,
+            settlements = state.settlements,
+            fines = state.fines,
             currencyCode = state.currencyCode
         )
     }
+
+    /** Contributions in the importable format. */
+    fun exportContributions(): String = CsvExporter.exportContributions(uiState.value.contributions, uiState.value.players)
+
+    /** Expenses in the importable format. */
+    fun exportExpenses(): String = CsvExporter.exportExpenses(uiState.value.expenses, uiState.value.players)
 
     private val importCsvUseCase = ImportCsvUseCase(repository)
 

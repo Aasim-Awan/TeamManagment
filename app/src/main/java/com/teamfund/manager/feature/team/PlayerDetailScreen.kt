@@ -1,5 +1,10 @@
 package com.teamfund.manager.feature.team
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.teamfund.manager.core.designsystem.EditMoneyRecordDialog
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import com.teamfund.manager.domain.model.PlayerSafeDeleteOutcome
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -70,26 +75,37 @@ fun PlayerDetailScreen(
     val state by viewModel.detailState.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
     var contributionToDelete by remember { mutableStateOf<Contribution?>(null) }
     var settlementToRevoke by remember { mutableStateOf<Settlement?>(null) }
     var fineToDelete by remember { mutableStateOf<Fine?>(null) }
+    var contributionToEdit by remember { mutableStateOf<Contribution?>(null) }
+    var settlementToEdit by remember { mutableStateOf<Settlement?>(null) }
+    var fineToEdit by remember { mutableStateOf<Fine?>(null) }
     var confirmDeactivate by remember { mutableStateOf(false) }
     var showAdjustBalance by remember { mutableStateOf(false) }
     var showAddFine by remember { mutableStateOf(false) }
-    var fineAmountText by remember { mutableStateOf("") }
-    var fineReason by remember { mutableStateOf(FineReason.OTHER) }
-    var fineNote by remember { mutableStateOf("") }
+    var fineAmountText by rememberSaveable { mutableStateOf("") }
+    var fineReason by rememberSaveable { mutableStateOf(FineReason.OTHER) }
+    var fineNote by rememberSaveable { mutableStateOf("") }
 
     if (confirmDeactivate) {
         AlertDialog(
             onDismissRequest = { confirmDeactivate = false },
-            title = { Text("Deactivate player?") },
-            text = { Text("Player leaves active roster. History kept.") },
+            title = { Text("Remove player?") },
+            text = { Text("A player with no records is deleted. A player with contributions, shares, payments or charges is deactivated instead, so the team's history stays correct. You can reactivate them later.") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDeactivate = false
-                    viewModel.deactivatePlayer(playerId, onBackClick)
-                }) { Text("Deactivate") }
+                    viewModel.removePlayer(playerId) { outcome ->
+                        val message = when (outcome) {
+                            PlayerSafeDeleteOutcome.HARD_DELETED -> "Player deleted"
+                            PlayerSafeDeleteOutcome.DEACTIVATED_HAS_HISTORY -> "Player has records, so they were deactivated"
+                        }
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        onBackClick()
+                    }
+                }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDeactivate = false }) { Text("Cancel") }
@@ -167,7 +183,7 @@ fun PlayerDetailScreen(
                                     Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(20.dp))
                                 }
                                 IconButton(onClick = { confirmDeactivate = true }, modifier = Modifier.size(40.dp)) {
-                                    Icon(Icons.Default.PersonOff, contentDescription = "Deactivate", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.PersonOff, contentDescription = "Remove player", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
@@ -272,7 +288,8 @@ fun PlayerDetailScreen(
                             amountMinorUnits = fine.amountMinorUnits,
                             currencyCode = state.currencyCode,
                             amountColor = MaterialTheme.colorScheme.error,
-                            onDelete = { fineToDelete = fine }
+                            onDelete = { fineToDelete = fine },
+                            onClick = { fineToEdit = fine }
                         )
                     }
                 }
@@ -293,7 +310,8 @@ fun PlayerDetailScreen(
                             currencyCode = state.currencyCode,
                             includeSign = true,
                             amountColor = MaterialTheme.colorScheme.primary,
-                            onDelete = { contributionToDelete = contrib }
+                            onDelete = { contributionToDelete = contrib },
+                            onClick = { contributionToEdit = contrib }
                         )
                     }
                     state.settlements.forEach { settlement ->
@@ -308,7 +326,8 @@ fun PlayerDetailScreen(
                             currencyCode = state.currencyCode,
                             includeSign = true,
                             amountColor = if (isOutgoing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                            onDelete = { settlementToRevoke = settlement }
+                            onDelete = { settlementToRevoke = settlement },
+                            onClick = { settlementToEdit = settlement }
                         )
                     }
                     state.expenseShares.forEach { share ->
@@ -326,6 +345,42 @@ fun PlayerDetailScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }
+    }
+
+    contributionToEdit?.let { contrib ->
+        EditMoneyRecordDialog(
+            title = "Edit contribution",
+            initialAmountMinorUnits = contrib.amountMinorUnits,
+            initialNote = contrib.notes,
+            initialDate = contrib.date,
+            currencyCode = state.currencyCode,
+            onSave = { amount, note, date -> viewModel.updateContribution(contrib.id, amount, note, date); contributionToEdit = null },
+            onDismiss = { contributionToEdit = null }
+        )
+    }
+
+    settlementToEdit?.let { settlement ->
+        EditMoneyRecordDialog(
+            title = "Edit payment",
+            initialAmountMinorUnits = settlement.amountMinorUnits,
+            initialNote = settlement.note,
+            initialDate = settlement.date,
+            currencyCode = state.currencyCode,
+            onSave = { amount, note, date -> viewModel.updateSettlement(settlement.id, amount, note, date); settlementToEdit = null },
+            onDismiss = { settlementToEdit = null }
+        )
+    }
+
+    fineToEdit?.let { fine ->
+        EditMoneyRecordDialog(
+            title = "Edit charge",
+            initialAmountMinorUnits = fine.amountMinorUnits,
+            initialNote = fine.note,
+            initialDate = fine.date,
+            currencyCode = state.currencyCode,
+            onSave = { amount, note, date -> viewModel.updateFine(fine.id, amount, note, date); fineToEdit = null },
+            onDismiss = { fineToEdit = null }
+        )
     }
 
     contributionToDelete?.let { contrib ->
@@ -384,8 +439,9 @@ fun PlayerDetailScreen(
             expenses = state.expenses,
             onDismiss = { showAdjustBalance = false },
             isSaving = isSaving,
-            onSettle = { amount, note, mode, expenseId ->
+            onSettle = { amount, note, mode, expenseId, date ->
                 viewModel.settleAdjustment(
+                    date = date,
                     playerId = playerId,
                     mode = mode,
                     amountMinorUnits = amount,

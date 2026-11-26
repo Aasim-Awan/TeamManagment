@@ -1,5 +1,6 @@
 package com.teamfund.manager.feature.contributions
 
+import com.teamfund.manager.core.designsystem.DatePickerField
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.verticalScroll
@@ -54,6 +55,7 @@ fun AddContributionScreen(
     var amountText by rememberSaveable { mutableStateOf("") }
     var selectedPurpose by rememberSaveable { mutableStateOf(ContributionPurpose.MONTHLY) }
     var notes by rememberSaveable { mutableStateOf("") }
+    var dateMillis by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
 
     var playerExpanded by rememberSaveable { mutableStateOf(false) }
     var purposeExpanded by rememberSaveable { mutableStateOf(false) }
@@ -123,6 +125,13 @@ fun AddContributionScreen(
                 singleLine = true
             )
 
+            DatePickerField(
+                selectedDateMillis = dateMillis,
+                onDateSelected = { dateMillis = it },
+                label = "Date received",
+                testTag = "contribution_date_picker"
+            )
+
             // Purpose Selector
             ExposedDropdownMenuBox(expanded = purposeExpanded, onExpandedChange = { purposeExpanded = !purposeExpanded }) {
                 TeamFundTextField(
@@ -168,6 +177,7 @@ fun AddContributionScreen(
                             playerId = selectedPlayerId!!,
                             amountMinorUnits = amountMinor,
                             purpose = selectedPurpose,
+                            date = dateMillis,
                             notes = notes.ifBlank { null },
                             onSuccess = onBackClick
                         )

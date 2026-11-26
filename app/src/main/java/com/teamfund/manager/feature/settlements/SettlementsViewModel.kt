@@ -114,6 +114,7 @@ class SettlementsViewModel(
         note: String?,
         expenseId: Long?,
         matchId: Long? = null,
+        date: Long = System.currentTimeMillis(),
         onSuccess: () -> Unit
     ) {
         saveGuard.launch(viewModelScope) {
@@ -125,6 +126,7 @@ class SettlementsViewModel(
                     repository.addFine(
                         Fine(
                             teamId = teamId,
+                            date = date,
                             playerId = playerId,
                             matchId = matchId,
                             amountMinorUnits = amountMinorUnits,
@@ -137,13 +139,13 @@ class SettlementsViewModel(
                     val settlement = Settlement(
                         id = 0L,
                         teamId = teamId,
+                        date = date,
                         fromPlayerId = playerId,
                         toPlayerId = null,
                         matchId = matchId,
                         expenseId = expenseId,
                         amountMinorUnits = amountMinorUnits,
                         adjustmentKind = SettlementAdjustmentKind.PLAYER_TO_TEAM,
-                        date = System.currentTimeMillis(),
                         note = note ?: "Debt settlement"
                     )
                     repository.recordPlayerPayment(settlement, shareId = null, expenseId = expenseId)
@@ -152,13 +154,13 @@ class SettlementsViewModel(
                     val settlement = Settlement(
                         id = 0L,
                         teamId = teamId,
+                        date = date,
                         fromPlayerId = 0L,
                         toPlayerId = playerId,
                         matchId = matchId,
                         expenseId = expenseId,
                         amountMinorUnits = amountMinorUnits,
                         adjustmentKind = SettlementAdjustmentKind.TEAM_TO_PLAYER,
-                        date = System.currentTimeMillis(),
                         note = note ?: "Debt settlement"
                     )
                     repository.addSettlement(settlement)
@@ -172,6 +174,10 @@ class SettlementsViewModel(
         viewModelScope.launch {
             repository.deleteSettlement(settlementId)
         }
+    }
+
+    fun updateSettlement(settlementId: Long, amountMinorUnits: Long, note: String?, date: Long) {
+        viewModelScope.launch { repository.updateSettlement(settlementId, amountMinorUnits, note, date) }
     }
 
     class Factory(

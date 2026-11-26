@@ -107,7 +107,7 @@ fun ExpensesScreen(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(state.filteredExpenses) { expense ->
+                        items(state.filteredExpenses, key = { it.id }) { expense ->
                             ExpenseCard(
                                 expense = expense,
                                 currencyCode = state.currencyCode,

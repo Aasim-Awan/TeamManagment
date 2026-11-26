@@ -28,8 +28,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -94,13 +95,15 @@ fun AddExpenseScreen(
                 notes = expense.notes ?: ""
                 selectedDateMillis = expense.date
 
+                // Player id 0L is the Team Fund's share, not a selectable player.
+                val playerShares = expense.shares.filter { it.playerId != 0L }
                 selectedPlayerIds.clear()
-                selectedPlayerIds.addAll(expense.shares.map { it.playerId })
-                
+                selectedPlayerIds.addAll(playerShares.map { it.playerId })
+
                 // Determine if it was a manual split (if shares aren't roughly equal to total/count)
-                val shareAmounts = expense.shares.map { it.shareAmountMinorUnits }
+                val shareAmounts = playerShares.map { it.shareAmountMinorUnits }
                 if (shareAmounts.isNotEmpty()) {
-                    val count = expense.shares.size
+                    val count = playerShares.size
                     val total = expense.amountMinorUnits
                     val autoShare = total / count
                     
@@ -226,7 +229,7 @@ fun AddExpenseScreen(
             // Paid By Selector
             ExposedDropdownMenuBox(expanded = payerExpanded, onExpandedChange = { payerExpanded = !payerExpanded }) {
                 val payerName = if (paidByPlayerId == null) "Paid directly from Team Fund"
-                else payerPlayers.find { it.id == paidByPlayerId }?.name ?: "Member"
+                else state.allPlayers.find { it.id == paidByPlayerId }?.name ?: "Member"
 
                 TeamFundTextField(
                     value = payerName,
@@ -249,13 +252,6 @@ fun AddExpenseScreen(
                             onClick = { paidByPlayerId = p.id; payerExpanded = false }
                         )
                     }
-                    DropdownMenuItem(
-                        text = { Text("+ Add player") },
-                        onClick = {
-                            payerExpanded = false
-                            showAddPlayerDialog = true
-                        }
-                    )
                 }
             }
 
@@ -294,29 +290,27 @@ fun AddExpenseScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Split among players",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "${selectedPlayerIds.size} selected",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Manual", style = MaterialTheme.typography.labelSmall)
-                            Switch(
-                                checked = isManualSplit,
-                                onCheckedChange = { isManualSplit = it }
-                            )
+                    Column {
+                        Text(
+                            text = "Split among players",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${selectedPlayerIds.size} selected",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    val splitModes = listOf(false to "Split equally", true to "Fixed per person")
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        splitModes.forEachIndexed { index, (manual, label) ->
+                            SegmentedButton(
+                                selected = isManualSplit == manual,
+                                onClick = { isManualSplit = manual },
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = splitModes.size),
+                                modifier = Modifier.testTag(if (manual) "split_fixed" else "split_equal")
+                            ) { Text(label, style = MaterialTheme.typography.labelMedium) }
                         }
                     }
 
@@ -376,17 +370,18 @@ fun AddExpenseScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 1.dp),
+                                    .toggleable(
+                                        value = isChecked,
+                                        role = Role.Checkbox,
+                                        onValueChange = { checked ->
+                                            if (checked) selectedPlayerIds.add(player.id)
+                                            else selectedPlayerIds.remove(player.id)
+                                        }
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Checkbox(
-                                    checked = isChecked,
-                                    onCheckedChange = { checked ->
-                                        if (checked) selectedPlayerIds.add(player.id)
-                                        else selectedPlayerIds.remove(player.id)
-                                    },
-                                    modifier = Modifier.scale(0.8f)
-                                )
+                                Checkbox(checked = isChecked, onCheckedChange = null)
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = if (!player.isActive) "${player.name} (inactive)" else player.name,
                                     style = MaterialTheme.typography.bodyMedium,
@@ -436,11 +431,18 @@ fun AddExpenseScreen(
                                 )
                             }
                         } else if (remainingMinor < 0L) {
-                             Text(
-                                "Over-allocated by ${MoneyFormatter.format(-remainingMinor, state.currencyCode)}!",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Extra to Team Fund:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    MoneyFormatter.format(-remainingMinor, state.currencyCode),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                 }
@@ -456,8 +458,7 @@ fun AddExpenseScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            val isOverAllocated = isManualSplit &&
-                selectedPlayerIds.size * MoneyFormatter.toMinorUnits(perPersonAmountText) > MoneyFormatter.toMinorUnits(amountText)
+            val fixedSplitMissingPlayers = isManualSplit && selectedPlayerIds.isEmpty()
 
             TeamFundButton(
                 onClick = {
@@ -487,7 +488,7 @@ fun AddExpenseScreen(
                     .fillMaxWidth()
                     .height(52.dp)
                     .testTag("save_expense_button"),
-                enabled = title.isNotBlank() && MoneyFormatter.toMinorUnits(amountText) > 0L && !isOverAllocated && !isSaving
+                enabled = title.isNotBlank() && MoneyFormatter.toMinorUnits(amountText) > 0L && !fixedSplitMissingPlayers && !isSaving
             ) {
                 Text(if (expenseId == null) "Save Expense" else "Update Expense")
             }

@@ -1,6 +1,6 @@
 # TeamFund Manager Privacy Policy
 
-Effective date: October 1, 2026
+Effective date: November 11, 2026
 
 Publisher: S&Ainnovation
 
@@ -20,15 +20,15 @@ You may choose to export financial reports as CSV or share match details through
 
 ## Android backups
 
-Android may back up or restore app data according to your device and account settings. Backup processing and retention are controlled by Android and your backup provider. Manage those settings separately on your device.
+If Android backup is turned on for your device and account, Android may back up and restore the app's team database and app settings (such as theme and active team), and copy them during a device transfer. Temporary CSV files prepared for sharing are not backed up. Backup processing and retention are controlled by Android and your backup provider; manage them in your device settings.
 
 ## Retention and deletion
 
-Local records remain until you remove them or use Settings → Reset All Data. Deactivating a player preserves their existing financial history. Reset All Data removes the app's local teams, players, matches and financial records. It does not remove previously exported files, copies shared with others or device backups; delete or manage those copies through the relevant apps and backup settings. Uninstalling the app generally removes local app storage, but backup restoration may bring back backed-up records.
+Local records remain until you remove them or use Settings → Reset all data. Deactivating a player preserves their existing financial history. Reset all data removes the app's local teams, players, matches and financial records. It does not remove previously exported files, copies shared with others or device backups; delete or manage those copies through the relevant apps and backup settings. Uninstalling the app generally removes local app storage, but backup restoration may bring back backed-up records.
 
 ## Permissions and external services
 
-File import uses Android's system file picker. Sharing uses Android's share sheet. Notification permission, if granted, allows local notifications; scheduled reminders are currently unavailable. Opening a policy or support link uses your chosen browser or email app. Those services may process connection information or messages under their own policies. The app does not access your address book to populate the roster.
+File import uses Android's system file picker. Sharing uses Android's share sheet. The app does not request notification permission and does not send reminders or notifications. Opening a policy or support link uses your chosen browser or email app. Those services may process connection information or messages under their own policies. The app does not request internet, contacts, location, camera or microphone permissions and does not access your address book to populate the roster.
 
 ## Payments, advertising and tracking
 

@@ -180,7 +180,7 @@ fun DashboardScreen(
                     ) {
                         StatCard(
                             title = "Match performance",
-                            value = "${state.matchStats.matchesPlayed} (${String.format("%.0f", state.matchStats.winRate)}%)",
+                            value = "${state.matchStats.matchesPlayed} (${String.format(java.util.Locale.getDefault(), "%.0f", state.matchStats.winRate)}%)",
                             subtitle = "W: ${state.matchStats.wins} | L: ${state.matchStats.losses}",
                             modifier = Modifier
                                 .weight(1f)
@@ -296,7 +296,7 @@ fun DashboardScreen(
                         )
                     }
                 } else {
-                    items(state.recentActivities) { item ->
+                    items(state.recentActivities, key = { "${it::class.simpleName}_${it.id}" }) { item ->
                         ActivityRow(activity = item, currencyCode = state.currencyCode)
                     }
                 }

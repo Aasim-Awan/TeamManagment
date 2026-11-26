@@ -17,6 +17,12 @@ import com.teamfund.manager.domain.model.ContributionPurpose
 import com.teamfund.manager.domain.model.CricketRole
 import com.teamfund.manager.domain.model.ExpenseCategory
 import com.teamfund.manager.domain.model.Fine
+import com.teamfund.manager.domain.model.Expense
+import com.teamfund.manager.domain.model.ExpenseShare
+import com.teamfund.manager.domain.model.Settlement
+import com.teamfund.manager.domain.model.Season
+import com.teamfund.manager.domain.model.InventoryItem
+import com.teamfund.manager.domain.model.InventoryMovement
 import com.teamfund.manager.domain.model.FineReason
 import com.teamfund.manager.domain.model.Match
 import com.teamfund.manager.domain.model.MatchPlayer
@@ -370,5 +376,141 @@ class TeamFundDaoTest {
 
         assertEquals(0, repository.getSettlementsFlow(teamId).first().size)
         assertEquals(0, repository.getFinesForTeamFlow(teamId).first().size)
+    }
+
+    private suspend fun seedSharedExpense(teamId: Long, playerId: Long): Long =
+        repository.saveExpenseWithShares(
+            Expense(teamId = teamId, title = "Ground", amountMinorUnits = 1000L, date = now),
+            listOf(ExpenseShare(playerId = playerId, shareAmountMinorUnits = 1000L))
+        )
+
+    private suspend fun paidOnShare(expenseId: Long): Long =
+        repository.getExpenseById(expenseId)!!.shares.single().paidAmountMinorUnits
+
+    @Test
+    fun updateSettlement_adjustsLinkedSharePayment() = runBlocking {
+        val teamId = seedTeam()
+        val playerId = seedPlayer(teamId)
+        val expenseId = seedSharedExpense(teamId, playerId)
+        val settlementId = repository.recordPlayerPayment(
+            Settlement(teamId = teamId, fromPlayerId = playerId, expenseId = expenseId, amountMinorUnits = 400L),
+            shareId = null, expenseId = expenseId
+        )
+        assertEquals(400L, paidOnShare(expenseId))
+
+        repository.updateSettlement(settlementId, 700L, "corrected", now)
+        assertEquals(700L, paidOnShare(expenseId))
+
+        repository.updateSettlement(settlementId, 200L, null, now)
+        assertEquals(200L, paidOnShare(expenseId))
+    }
+
+    @Test
+    fun revokingTeamPayout_doesNotTouchShare() = runBlocking {
+        val teamId = seedTeam()
+        val playerId = seedPlayer(teamId)
+        val expenseId = seedSharedExpense(teamId, playerId)
+        repository.recordPlayerPayment(
+            Settlement(teamId = teamId, fromPlayerId = playerId, expenseId = expenseId, amountMinorUnits = 400L),
+            shareId = null, expenseId = expenseId
+        )
+        val payoutId = repository.addSettlement(
+            Settlement(
+                teamId = teamId, fromPlayerId = 0L, toPlayerId = playerId, expenseId = expenseId,
+                amountMinorUnits = 300L, adjustmentKind = SettlementAdjustmentKind.TEAM_TO_PLAYER
+            )
+        )
+
+        repository.deleteSettlement(payoutId)
+
+        assertEquals(400L, paidOnShare(expenseId))
+    }
+
+    @Test
+    fun updatePaidFine_updatesItsSettlement() = runBlocking {
+        val teamId = seedTeam()
+        val playerId = seedPlayer(teamId)
+        val fineId = repository.addFineWithSettlement(
+            Fine(teamId = teamId, playerId = playerId, amountMinorUnits = 300L, reason = FineReason.LATE),
+            recordPayment = true
+        )
+
+        repository.updateFine(fineId, 500L, "late twice", now)
+
+        assertEquals(500L, repository.getSettlementsFlow(teamId).first().single().amountMinorUnits)
+    }
+
+    @Test
+    fun deletePlayerSafely_keepsPlayerWhoPaidAnExpense() = runBlocking {
+        val teamId = seedTeam()
+        val playerId = seedPlayer(teamId)
+        repository.saveExpenseWithShares(
+            Expense(teamId = teamId, title = "Balls", amountMinorUnits = 500L, paidByPlayerId = playerId, date = now),
+            emptyList()
+        )
+
+        assertEquals(PlayerSafeDeleteOutcome.DEACTIVATED_HAS_HISTORY, repository.deletePlayerSafely(playerId))
+    }
+
+    @Test
+    fun adjustInventory_neverGoesBelowZero() = runBlocking {
+        val teamId = seedTeam()
+        val itemId = repository.saveInventoryItem(InventoryItem(teamId = teamId, name = "Balls", quantity = 2))
+
+        repository.adjustInventoryItem(itemId, -5, InventoryMovement(itemId = itemId, delta = -5))
+
+        assertEquals(0, repository.getInventoryItemsFlow(teamId).first().single().quantity)
+    }
+
+    private suspend fun editExpenseAmount(expenseId: Long, teamId: Long, playerId: Long, newAmount: Long) {
+        val existing = repository.getExpenseById(expenseId)!!
+        repository.saveExpenseWithShares(
+            existing.copy(amountMinorUnits = newAmount),
+            listOf(ExpenseShare(expenseId = expenseId, playerId = playerId, shareAmountMinorUnits = newAmount))
+        )
+    }
+
+    @Test
+    fun raisingExpenseAfterFullPayment_leavesDifferenceUnpaid() = runBlocking {
+        val teamId = seedTeam()
+        val playerId = seedPlayer(teamId)
+        val expenseId = seedSharedExpense(teamId, playerId)
+        repository.recordPlayerPayment(
+            Settlement(teamId = teamId, fromPlayerId = playerId, expenseId = expenseId, amountMinorUnits = 1000L),
+            shareId = null, expenseId = expenseId
+        )
+        val createdAt = repository.getExpenseById(expenseId)!!.createdAt
+
+        editExpenseAmount(expenseId, teamId, playerId, 1500L)
+
+        val edited = repository.getExpenseById(expenseId)!!
+        val share = edited.shares.single()
+        assertEquals(1000L, share.paidAmountMinorUnits)
+        assertEquals(false, share.isSettled)
+        assertEquals(500L, share.remainingAmountMinorUnits)
+        assertEquals(createdAt, edited.createdAt)
+    }
+
+    @Test
+    fun loweringExpenseAfterFullPayment_givesPlayerCredit() = runBlocking {
+        val teamId = seedTeam()
+        val playerId = seedPlayer(teamId)
+        val expenseId = seedSharedExpense(teamId, playerId)
+        repository.recordPlayerPayment(
+            Settlement(teamId = teamId, fromPlayerId = playerId, expenseId = expenseId, amountMinorUnits = 1000L),
+            shareId = null, expenseId = expenseId
+        )
+
+        editExpenseAmount(expenseId, teamId, playerId, 600L)
+
+        val summary = CalculatePlayerBalancesUseCase().execute(
+            players = repository.getAllPlayersFlow(teamId).first(),
+            contributions = emptyList(),
+            expenses = repository.getExpensesFlow(teamId).first(),
+            expenseShares = repository.getAllExpenseSharesFlow(teamId).first(),
+            settlements = repository.getSettlementsFlow(teamId).first()
+        ).single()
+        assertEquals(true, repository.getExpenseById(expenseId)!!.shares.single().isSettled)
+        assertEquals(400L, summary.positionMinorUnits)
     }
 }

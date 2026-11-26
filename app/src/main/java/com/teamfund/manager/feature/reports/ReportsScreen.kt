@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,14 +40,19 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import java.io.File
+import kotlinx.coroutines.launch
 
 @Composable
 fun ReportsScreen(
-    viewModel: ReportsViewModel,
-    onBackClick: () -> Unit
+    viewModel: ReportsViewModel
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var exportMenuOpen by remember { mutableStateOf(false) }
+    var importMenuOpen by remember { mutableStateOf(false) }
+    val showResult: (String) -> Unit = { message -> scope.launch { snackbarHostState.showSnackbar(message, withDismissAction = true) } }
 
     val contributionImportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -53,9 +60,7 @@ fun ReportsScreen(
         uri?.let {
             val content = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { it.readText() }
             if (content != null) {
-                viewModel.importContributionsFromCsv(content) { message ->
-                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                }
+                viewModel.importContributionsFromCsv(content, showResult)
             }
         }
     }
@@ -66,9 +71,7 @@ fun ReportsScreen(
         uri?.let {
             val content = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { it.readText() }
             if (content != null) {
-                viewModel.importExpensesFromCsv(content) { message ->
-                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                }
+                viewModel.importExpensesFromCsv(content, showResult)
             }
         }
     }
@@ -87,26 +90,48 @@ fun ReportsScreen(
 
     Scaffold(
         topBar = {
+            // Reports is a bottom-bar tab, so no back arrow. One Export and one Import menu.
             TeamFundTopBar(
                 title = "Reports",
-                showBackButton = true,
-                onBackClick = onBackClick,
                 actions = {
-                    IconButton(onClick = {
-                        val csv = viewModel.exportMasterReport()
-                        shareCsv(csv, "team_fund_audit_report.csv")
-                    }) {
-                        Icon(Icons.Default.Share, contentDescription = "Export Master Report")
+                    Box {
+                        IconButton(onClick = { exportMenuOpen = true }, modifier = Modifier.testTag("reports_export")) {
+                            Icon(Icons.Default.IosShare, contentDescription = "Export CSV")
+                        }
+                        DropdownMenu(expanded = exportMenuOpen, onDismissRequest = { exportMenuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { MenuText("Full report", "Summary, balances and every record") },
+                                onClick = { exportMenuOpen = false; shareCsv(viewModel.exportFullReport(), fileName(state.teamName, "report")) }
+                            )
+                            DropdownMenuItem(
+                                text = { MenuText("Contributions", "Can be imported again") },
+                                onClick = { exportMenuOpen = false; shareCsv(viewModel.exportContributions(), fileName(state.teamName, "contributions")) }
+                            )
+                            DropdownMenuItem(
+                                text = { MenuText("Expenses", "Can be imported again") },
+                                onClick = { exportMenuOpen = false; shareCsv(viewModel.exportExpenses(), fileName(state.teamName, "expenses")) }
+                            )
+                        }
                     }
-                    IconButton(onClick = { contributionImportLauncher.launch("text/*") }) {
-                        Icon(Icons.Default.FileUpload, contentDescription = "Import Contributions")
-                    }
-                    IconButton(onClick = { expenseImportLauncher.launch("text/*") }) {
-                        Icon(Icons.Default.FileUpload, contentDescription = "Import Expenses", tint = MaterialTheme.colorScheme.secondary)
+                    Box {
+                        IconButton(onClick = { importMenuOpen = true }, modifier = Modifier.testTag("reports_import")) {
+                            Icon(Icons.Default.FileUpload, contentDescription = "Import CSV")
+                        }
+                        DropdownMenu(expanded = importMenuOpen, onDismissRequest = { importMenuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { MenuText("Import contributions", "From a TeamFund contributions CSV") },
+                                onClick = { importMenuOpen = false; contributionImportLauncher.launch("text/*") }
+                            )
+                            DropdownMenuItem(
+                                text = { MenuText("Import expenses", "From a TeamFund expenses CSV") },
+                                onClick = { importMenuOpen = false; expenseImportLauncher.launch("text/*") }
+                            )
+                        }
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         if (state.isLoading) {
             LoadingView(modifier = Modifier.padding(innerPadding))
@@ -145,39 +170,26 @@ fun ReportsScreen(
                         Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
 
                         ReportRow(
-                            label = "Total Member Contributions",
+                            label = "Money in",
                             minorUnits = state.financialSummary.totalContributionsMinorUnits,
                             currencyCode = state.currencyCode
                         )
                         ReportRow(
-                            label = "Direct Team Expenses",
+                            label = "Money out from fund",
                             minorUnits = -state.financialSummary.totalExpensesFromFundMinorUnits,
                             currencyCode = state.currencyCode
                         )
                         ReportRow(
-                            label = "Expenses Paid On Behalf",
+                            label = "Paid by players",
                             minorUnits = state.financialSummary.totalExpensesByPlayersMinorUnits,
                             currencyCode = state.currencyCode
                         )
                         ReportRow(
-                            label = "Total Member Outstanding Dues",
+                            label = "To collect from players",
                             minorUnits = state.financialSummary.totalOutstandingDebtMinorUnits,
                             currencyCode = state.currencyCode
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
-                        TeamFundButton(
-                            onClick = {
-                                val csv = viewModel.exportMasterReport()
-                                shareCsv(csv, "team_fund_audit_report.csv")
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Default.Share, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Export Full Audit Report (CSV)")
-                        }
                     }
                 }
 
@@ -224,7 +236,7 @@ fun ReportsScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "${String.format("%.1f", breakdown.percentage)}% of total team expenses",
+                                text = "${String.format(java.util.Locale.getDefault(), "%.1f", breakdown.percentage)}% of total team expenses",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -266,6 +278,20 @@ fun ReportsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun MenuText(title: String, subtitle: String) {
+    Column {
+        Text(title, style = MaterialTheme.typography.bodyLarge)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** e.g. "northside-cricket-report-2026-11-11.csv": dated, so exports do not overwrite each other. */
+private fun fileName(teamName: String, kind: String): String {
+    val slug = teamName.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').ifBlank { "team" }
+    return "$slug-$kind-${java.time.LocalDate.now()}.csv"
 }
 
 @Composable

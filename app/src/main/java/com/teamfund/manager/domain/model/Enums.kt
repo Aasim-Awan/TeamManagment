@@ -91,3 +91,16 @@ enum class InventoryCategory(val displayName: String) {
 enum class DuePeriod(val displayName: String) {
     MONTHLY("Monthly")
 }
+
+/** Stored values for [Match.tossWinner]. Older matches may hold free text, which is shown as is. */
+object MatchTossWinner {
+    const val OUR_TEAM = "OUR_TEAM"
+    const val OPPONENT = "OPPONENT"
+
+    fun label(value: String?, opponentName: String): String? = when (value) {
+        null, "" -> null
+        OUR_TEAM -> "We won the toss"
+        OPPONENT -> "$opponentName won the toss"
+        else -> value
+    }
+}

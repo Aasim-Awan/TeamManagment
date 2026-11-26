@@ -82,6 +82,7 @@ class ContributionsViewModel(
         playerId: Long,
         amountMinorUnits: Long,
         purpose: ContributionPurpose,
+        date: Long,
         notes: String?,
         onSuccess: () -> Unit
     ) {
@@ -94,7 +95,7 @@ class ContributionsViewModel(
                 teamId = teamId,
                 playerId = playerId,
                 amountMinorUnits = amountMinorUnits,
-                date = System.currentTimeMillis(),
+                date = date,
                 purpose = purpose,
                 notes = notes
             )
@@ -108,6 +109,10 @@ class ContributionsViewModel(
         viewModelScope.launch {
             repository.deleteContribution(contributionId)
         }
+    }
+
+    fun updateContribution(contributionId: Long, amountMinorUnits: Long, notes: String?, date: Long) {
+        viewModelScope.launch { repository.updateContribution(contributionId, amountMinorUnits, notes, date) }
     }
 
     class Factory(

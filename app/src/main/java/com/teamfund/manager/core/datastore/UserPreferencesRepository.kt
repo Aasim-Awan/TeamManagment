@@ -26,7 +26,7 @@ class UserPreferencesRepository(private val context: Context) {
     }
 
     val themeModeFlow: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_THEME_MODE] ?: "LIGHT"
+        prefs[KEY_THEME_MODE] ?: "SYSTEM"
     }
 
     suspend fun setActiveTeamId(teamId: Long) {

@@ -1,5 +1,6 @@
 package com.teamfund.manager.feature.contributions
 
+import com.teamfund.manager.core.designsystem.EditMoneyRecordDialog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -43,6 +44,7 @@ fun ContributionsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var contributionToDelete by remember { mutableStateOf<Contribution?>(null) }
+    var contributionToEdit by remember { mutableStateOf<Contribution?>(null) }
 
     Scaffold(
         topBar = {
@@ -87,13 +89,13 @@ fun ContributionsScreen(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(state.contributions) { contribution ->
+                        items(state.contributions, key = { it.id }) { contribution ->
                             val playerName = state.playersMap[contribution.playerId]?.name ?: "Member"
                             ContributionCard(
                                 contribution = contribution,
                                 playerName = playerName,
                                 currencyCode = state.currencyCode,
-                                onClick = { contributionToDelete = contribution }
+                                onClick = { contributionToEdit = contribution }
                             )
                         }
                         item { Spacer(modifier = Modifier.height(80.dp)) }
@@ -101,6 +103,25 @@ fun ContributionsScreen(
                 }
             }
         }
+    }
+
+    contributionToEdit?.let { contrib ->
+        EditMoneyRecordDialog(
+            title = "Edit contribution",
+            initialAmountMinorUnits = contrib.amountMinorUnits,
+            initialNote = contrib.notes,
+            initialDate = contrib.date,
+            currencyCode = state.currencyCode,
+            onSave = { amount, note, date ->
+                viewModel.updateContribution(contrib.id, amount, note, date)
+                contributionToEdit = null
+            },
+            onDismiss = { contributionToEdit = null },
+            onDelete = {
+                contributionToEdit = null
+                contributionToDelete = contrib
+            }
+        )
     }
 
     contributionToDelete?.let { contrib ->

@@ -36,8 +36,7 @@ import com.teamfund.manager.core.designsystem.TeamFundTopBar
 fun MatchesScreen(
     viewModel: MatchesViewModel,
     onNavigateToAddMatch: () -> Unit,
-    onNavigateToMatchDetail: (Long) -> Unit,
-    onBackClick: () -> Unit
+    onNavigateToMatchDetail: (Long) -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -45,8 +44,6 @@ fun MatchesScreen(
         topBar = {
             TeamFundTopBar(
                 title = state.activeSeason?.let { "Matches • ${it.name}" } ?: "Matches",
-                showBackButton = true,
-                onBackClick = onBackClick
             )
         },
         floatingActionButton = {
@@ -99,7 +96,7 @@ fun MatchesScreen(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(state.filteredMatches) { match ->
+                        items(state.filteredMatches, key = { it.id }) { match ->
                             MatchCard(
                                 match = match,
                                 onClick = { onNavigateToMatchDetail(match.id) }

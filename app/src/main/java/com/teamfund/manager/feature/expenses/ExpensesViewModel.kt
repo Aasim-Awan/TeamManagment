@@ -176,8 +176,9 @@ class ExpensesViewModel(
             // Check if there is an unallocated amount that should be covered by Team Fund
             val allocatedAmount = baseShares.sumOf { it.shareAmountMinorUnits }
             val remainingAmount = amountMinorUnits - allocatedAmount
-            // Shares must never add up to more than the expense itself.
-            if (remainingAmount < 0L) return@launch
+            // Equal split must match the expense. A fixed per-person split may go over:
+            // the extra lands in the Team Fund as players pay their shares.
+            if (remainingAmount < 0L && manualPlayerAmounts == null) return@launch
 
             val finalShares = if (remainingAmount > 0) {
                 // If Team Fund paid, this share is auto-settled. 
@@ -214,6 +215,7 @@ class ExpensesViewModel(
         note: String?,
         expenseId: Long?,
         shareId: Long? = null,
+        date: Long = System.currentTimeMillis(),
         onSuccess: () -> Unit
     ) {
         saveGuard.launch(viewModelScope) {
@@ -227,12 +229,12 @@ class ExpensesViewModel(
                     val settlement = Settlement(
                         id = 0L,
                         teamId = teamId,
+                        date = date,
                         fromPlayerId = playerId,
                         toPlayerId = null,
                         expenseId = expenseId,
                         amountMinorUnits = amountMinorUnits,
                         adjustmentKind = SettlementAdjustmentKind.PLAYER_TO_TEAM,
-                        date = System.currentTimeMillis(),
                         note = note ?: "Debt settlement"
                     )
                     repository.recordPlayerPayment(settlement, shareId = shareId, expenseId = expenseId)

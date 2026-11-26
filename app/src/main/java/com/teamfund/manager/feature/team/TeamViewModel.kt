@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.teamfund.manager.core.datastore.UserPreferencesRepository
 import com.teamfund.manager.domain.model.Contribution
+import com.teamfund.manager.domain.model.PlayerSafeDeleteOutcome
 import com.teamfund.manager.domain.model.Expense
 import com.teamfund.manager.domain.model.ExpenseShare
 import com.teamfund.manager.domain.model.Player
@@ -237,6 +238,13 @@ class TeamViewModel(
         }
     }
 
+    /** Deletes a player with no records; deactivates one with history (see [TeamFundRepository.deletePlayerSafely]). */
+    fun removePlayer(playerId: Long, onDone: (PlayerSafeDeleteOutcome) -> Unit) {
+        viewModelScope.launch {
+            onDone(repository.deletePlayerSafely(playerId))
+        }
+    }
+
     fun deactivatePlayer(playerId: Long, onSuccess: () -> Unit) {
         viewModelScope.launch {
             repository.deactivatePlayer(playerId)
@@ -262,6 +270,7 @@ class TeamViewModel(
         amountMinorUnits: Long,
         note: String?,
         expenseId: Long?,
+        date: Long = System.currentTimeMillis(),
         onSuccess: () -> Unit
     ) {
         saveGuard.launch(viewModelScope) {
@@ -273,6 +282,7 @@ class TeamViewModel(
                     repository.addFine(
                         Fine(
                             teamId = teamId,
+                            date = date,
                             playerId = playerId,
                             amountMinorUnits = amountMinorUnits,
                             reason = FineReason.CHARGE,
@@ -283,6 +293,7 @@ class TeamViewModel(
                 SettleAdjustmentMode.PLAYER_PAID -> {
                     val settlement = Settlement(
                         teamId = teamId,
+                        date = date,
                         fromPlayerId = playerId,
                         toPlayerId = null,
                         expenseId = expenseId,
@@ -295,6 +306,7 @@ class TeamViewModel(
                 SettleAdjustmentMode.TEAM_PAID_PLAYER -> {
                     val settlement = Settlement(
                         teamId = teamId,
+                        date = date,
                         fromPlayerId = 0L,
                         toPlayerId = playerId,
                         expenseId = expenseId,
@@ -362,6 +374,18 @@ class TeamViewModel(
         val settlements: List<Settlement>,
         val fines: List<Fine>
     )
+
+    fun updateContribution(contributionId: Long, amountMinorUnits: Long, notes: String?, date: Long) {
+        viewModelScope.launch { repository.updateContribution(contributionId, amountMinorUnits, notes, date) }
+    }
+
+    fun updateSettlement(settlementId: Long, amountMinorUnits: Long, note: String?, date: Long) {
+        viewModelScope.launch { repository.updateSettlement(settlementId, amountMinorUnits, note, date) }
+    }
+
+    fun updateFine(fineId: Long, amountMinorUnits: Long, note: String?, date: Long) {
+        viewModelScope.launch { repository.updateFine(fineId, amountMinorUnits, note, date) }
+    }
 
     class Factory(
         private val repository: TeamFundRepository,

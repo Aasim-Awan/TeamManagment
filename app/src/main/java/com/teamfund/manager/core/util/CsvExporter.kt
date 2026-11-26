@@ -25,12 +25,15 @@ internal object Csv {
 
     /** ISO date (yyyy-MM-dd), the same on every device and language, so files re-import cleanly. */
     fun date(timestamp: Long): String = DateTimeUtils.toLocalDate(timestamp).toString()
+
+    /** UTF-8 byte-order mark so Excel opens accented names and currency symbols correctly. */
+    const val BOM = "\uFEFF"
 }
 
 object CsvExporter {
 
     fun exportContributions(contributions: List<Contribution>, players: Map<Long, Player>): String {
-        val sb = StringBuilder()
+        val sb = StringBuilder(Csv.BOM)
         sb.append("Date,Player,Amount,Purpose,Notes\n")
         contributions.forEach { contribution ->
             val playerName = players[contribution.playerId]?.name ?: "Unknown"
@@ -48,7 +51,7 @@ object CsvExporter {
     }
 
     fun exportExpenses(expenses: List<Expense>, players: Map<Long, Player>): String {
-        val sb = StringBuilder()
+        val sb = StringBuilder(Csv.BOM)
         sb.append("Date,Title,Category,Amount,Paid By,Notes\n")
         expenses.forEach { expense ->
             val paidByName = if (expense.paidByPlayerId == null) "Team Fund" else players[expense.paidByPlayerId]?.name ?: "Unknown"
@@ -66,84 +69,79 @@ object CsvExporter {
         return sb.toString()
     }
 
-    fun exportMasterReport(
+    /** Columns of the full report. Every row has exactly these columns, so the file opens as one table. */
+    val FULL_REPORT_HEADER = listOf("Section", "Date", "Description", "Player", "Category", "Amount", "Currency", "Notes")
+
+    /**
+     * Full team report as one fixed-column table, sorted newest first inside each section.
+     * Amount sign = effect on the team: money in is positive, money out and expenses are negative.
+     * Balance rows: positive = team owes the player, negative = collect from the player.
+     * Charge rows are amounts a player owes (not cash moved), shown positive.
+     */
+    fun exportFullReport(
         teamName: String,
+        summary: TeamFinancialSummary,
+        playerSummaries: List<PlayerFinancialSummary>,
+        players: Map<Long, Player>,
         expenses: List<Expense>,
-        players: List<PlayerFinancialSummary>,
-        currencyCode: String
+        contributions: List<Contribution>,
+        settlements: List<Settlement>,
+        fines: List<Fine>,
+        currencyCode: String,
+        generatedAt: Long = System.currentTimeMillis()
     ): String {
-        val sb = StringBuilder()
-        sb.append(Csv.row("MASTER FINANCIAL AUDIT", teamName))
-        sb.append(Csv.row("Generated on", Csv.date(System.currentTimeMillis())))
-        sb.append("\n")
-
-        // 0. Actionable Summary
-        sb.append("ACTIONABLE SUMMARY\n")
-
-        val toPay = players.filter { it.positionMinorUnits > 0 }
-        val toCollect = players.filter { it.positionMinorUnits < 0 }
-
-        sb.append("MONEY TO GIVE BACK (Team owes these members)\n")
-        if (toPay.isEmpty()) {
-            sb.append("None - All payouts settled.\n")
-        } else {
-            toPay.forEach { p ->
-                sb.append(Csv.row(p.player.name, MoneyFormatter.fromMinorUnits(p.positionMinorUnits), currencyCode))
-            }
-        }
-        sb.append("\n")
-
-        sb.append("MONEY TO COLLECT (Members owe the team)\n")
-        if (toCollect.isEmpty()) {
-            sb.append("None - All dues collected.\n")
-        } else {
-            toCollect.forEach { p ->
-                sb.append(Csv.row(p.player.name, MoneyFormatter.fromMinorUnits(p.amountTeamShouldCollectMinorUnits), currencyCode))
-            }
-        }
-        sb.append("\n---\n\n")
-
-        // 1. Expense Distribution
-        sb.append("EXPENSE DISTRIBUTION\n")
-        sb.append(Csv.row("Date", "Title", "Category", "Amount ($currencyCode)", "Paid By", "Notes"))
-        expenses.forEach { expense ->
-            val paidByName = if (expense.paidByPlayerId == null) "Team Fund" else players.find { it.player.id == expense.paidByPlayerId }?.player?.name ?: "Unknown"
+        val sb = StringBuilder(Csv.BOM)
+        sb.append(Csv.row(*FULL_REPORT_HEADER.toTypedArray()))
+        fun add(section: String, date: Long?, description: String, player: String?, category: String?, amount: Long?, notes: String?) {
             sb.append(
                 Csv.row(
-                    Csv.date(expense.date),
-                    expense.title,
-                    expense.category.displayName,
-                    MoneyFormatter.fromMinorUnits(expense.amountMinorUnits),
-                    paidByName,
-                    expense.notes
+                    section,
+                    date?.let { Csv.date(it) },
+                    description,
+                    player,
+                    category,
+                    amount?.let { MoneyFormatter.fromMinorUnits(it) },
+                    if (amount != null) currencyCode else null,
+                    notes
                 )
             )
         }
-        sb.append("\n")
-
-        // 2. Member Balances
-        sb.append("MEMBER LEDGER & REMAINING BALANCES\n")
-        sb.append(
-            Csv.row(
-                "Member Name", "Total Contributions", "Paid on Behalf", "Personal Expense Shares",
-                "Settlements Paid", "Settlements Received", "Net Balance ($currencyCode)", "Status"
-            )
-        )
-        players.forEach { p ->
-            sb.append(
-                Csv.row(
-                    p.player.name,
-                    MoneyFormatter.fromMinorUnits(p.totalContributionsMinorUnits),
-                    MoneyFormatter.fromMinorUnits(p.totalPaidOnBehalfMinorUnits),
-                    MoneyFormatter.fromMinorUnits(p.personalExpenseSharesMinorUnits),
-                    MoneyFormatter.fromMinorUnits(p.settlementsPaidMinorUnits),
-                    MoneyFormatter.fromMinorUnits(p.settlementsReceivedMinorUnits),
-                    MoneyFormatter.fromMinorUnits(p.positionMinorUnits),
-                    p.statusText
-                )
-            )
+        fun name(id: Long?): String = when (id) {
+            null, 0L -> "Team Fund"
+            else -> players[id]?.name ?: "Unknown"
         }
 
+        add("Summary", generatedAt, "Team", null, null, null, teamName)
+        add("Summary", generatedAt, "Team fund balance", null, null, summary.teamFundBalanceMinorUnits, null)
+        add("Summary", generatedAt, "Money in", null, null, summary.totalContributionsMinorUnits, "Contributions and payments into the fund")
+        add("Summary", generatedAt, "Money out from fund", null, null, -summary.totalExpensesFromFundMinorUnits, "Expenses paid by the fund and payouts to players")
+        add("Summary", generatedAt, "Paid by players", null, null, summary.totalExpensesByPlayersMinorUnits, "Expenses players paid for the team")
+        add("Summary", generatedAt, "To collect from players", null, null, summary.totalOutstandingDebtMinorUnits, null)
+        add("Summary", generatedAt, "Team owes players", null, null, playerSummaries.sumOf { it.amountTeamShouldPayMinorUnits }, null)
+
+        playerSummaries.sortedBy { it.player.name.lowercase() }.forEach { p ->
+            add("Balance", generatedAt, "Net position", p.player.name, if (p.player.isActive) "Active" else "Inactive", p.positionMinorUnits, p.statusText)
+        }
+        expenses.sortedByDescending { it.date }.forEach { e ->
+            add("Expense", e.date, e.title, name(e.paidByPlayerId), e.category.displayName, -e.amountMinorUnits, e.notes)
+        }
+        contributions.sortedByDescending { it.date }.forEach { c ->
+            add("Contribution", c.date, "Contribution received", name(c.playerId), c.purpose.displayName, c.amountMinorUnits, c.notes)
+        }
+        settlements.sortedByDescending { it.date }.forEach { s ->
+            val teamPaid = s.adjustmentKind == SettlementAdjustmentKind.TEAM_TO_PLAYER
+            add(
+                "Settlement", s.date,
+                if (teamPaid) "Team paid player" else "Player paid team",
+                if (teamPaid) name(s.toPlayerId) else name(s.fromPlayerId),
+                s.adjustmentKind.displayName,
+                if (teamPaid) -s.amountMinorUnits else s.amountMinorUnits,
+                s.note
+            )
+        }
+        fines.sortedByDescending { it.date }.forEach { f ->
+            add("Charge", f.date, f.reason.displayName, name(f.playerId), f.reason.displayName, f.amountMinorUnits, f.note)
+        }
         return sb.toString()
     }
 
@@ -157,7 +155,7 @@ object CsvExporter {
         stats: List<MatchPlayerStats>,
         currencyCode: String
     ): String {
-        val sb = StringBuilder()
+        val sb = StringBuilder(Csv.BOM)
         sb.append("MATCH EXPORT\n")
         sb.append(Csv.row("Opponent", match.opponentName))
         sb.append(Csv.row("Date", Csv.date(match.date)))

@@ -20,6 +20,7 @@ import com.teamfund.manager.domain.model.SportType
 import com.teamfund.manager.domain.model.Team
 import com.teamfund.manager.domain.repository.TeamFundRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -75,6 +76,7 @@ class MatchesViewModel(
 
     private val _detailState = MutableStateFlow(MatchDetailUiState())
     val detailState: StateFlow<MatchDetailUiState> = _detailState.asStateFlow()
+    private var detailJob: Job? = null
 
     init {
         loadMatches()
@@ -155,8 +157,12 @@ class MatchesViewModel(
     }
 
     fun loadMatchDetail(matchId: Long) {
-        viewModelScope.launch {
-            _detailState.value = MatchDetailUiState(isLoading = true)
+        // One collector only: returning to the screen used to stack a new one each time.
+        detailJob?.cancel()
+        detailJob = viewModelScope.launch {
+            if (_detailState.value.match?.id != matchId) {
+                _detailState.value = MatchDetailUiState(isLoading = true)
+            }
 
             userPreferencesRepository.activeTeamIdFlow
                 .flatMapLatest { activeId -> repository.getActiveTeamFlow(activeId) }
@@ -243,7 +249,8 @@ class MatchesViewModel(
                 overs = overs,
                 tossWinner = tossWinner,
                 playerOfTheMatchId = playerOfTheMatchId,
-                seasonId = seasonId ?: _uiState.value.activeSeason?.id,
+                // Editing keeps the match in its own season; only new matches join the active season.
+                seasonId = if (existing != null) existing.seasonId else seasonId ?: _uiState.value.activeSeason?.id,
                 matchFeeMinorUnits = matchFeeMinorUnits,
                 groundFeeMinorUnits = groundFeeMinorUnits,
                 notes = notes,
@@ -286,9 +293,10 @@ class MatchesViewModel(
             .toSet()
     }
 
-    fun savePlayerStats(matchId: Long, stats: List<MatchPlayerStats>) {
+    fun savePlayerStats(matchId: Long, stats: List<MatchPlayerStats>, onSaved: () -> Unit = {}) {
         viewModelScope.launch {
             repository.saveMatchPlayerStats(stats)
+            onSaved()
         }
     }
 

@@ -1,5 +1,6 @@
 package com.teamfund.manager.feature.matches
 
+import com.teamfund.manager.domain.model.MatchTossWinner
 import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.OutlinedButton
@@ -23,25 +24,29 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.teamfund.manager.core.designsystem.ExpenseCard
@@ -57,6 +62,7 @@ import com.teamfund.manager.domain.model.MatchPlayerStats
 import com.teamfund.manager.domain.model.MatchPlayerStatus
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.mutableStateMapOf
+import kotlinx.coroutines.launch
 
 @Composable
 fun MatchDetailScreen(
@@ -69,8 +75,11 @@ fun MatchDetailScreen(
 ) {
     val state by viewModel.detailState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     var confirmDelete by remember { mutableStateOf(false) }
-    val runsDraft = remember { mutableStateMapOf<Long, String>() }
+    // Reset drafts when saved stats or the squad change (e.g. after editing the match).
+    val runsDraft = remember(state.playerStats, state.matchPlayers) { mutableStateMapOf<Long, String>() }
 
     if (confirmDelete) {
         AlertDialog(
@@ -98,15 +107,28 @@ fun MatchDetailScreen(
             TeamFundTopBar(
                 title = state.match?.opponentName?.let { "vs $it" } ?: "Match Details",
                 showBackButton = true,
-                onBackClick = onBackClick
+                onBackClick = onBackClick,
+                actions = {
+                    if (state.match != null) {
+                        IconButton(onClick = { onNavigateToEditMatch(matchId) }) {
+                            Icon(imageVector = Icons.Default.Edit, contentDescription = "Edit Match")
+                        }
+                        IconButton(onClick = { confirmDelete = true }) {
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Match", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         if (state.isLoading || state.match == null) {
             LoadingView(modifier = Modifier.padding(innerPadding))
         } else {
             val match = state.match!!
             val totalMatchExpense = state.expenses.sumOf { it.amountMinorUnits }
+            val tossText = MatchTossWinner.label(match.tossWinner, match.opponentName)
+            val potmName = state.playerOfTheMatch?.name
 
             Column(
                 modifier = Modifier
@@ -125,23 +147,7 @@ fun MatchDetailScreen(
                     )
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            StatusChip(result = match.result)
-                            Row {
-                                IconButton(onClick = { onNavigateToEditMatch(match.id) }) {
-                                    Icon(imageVector = Icons.Default.Edit, contentDescription = "Edit Match")
-                                }
-                                IconButton(onClick = {
-                                    confirmDelete = true
-                                }) {
-                                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Match", tint = MaterialTheme.colorScheme.error)
-                                }
-                            }
-                        }
+                        StatusChip(result = match.result)
 
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
@@ -176,6 +182,13 @@ fun MatchDetailScreen(
                             }
                         }
 
+                        if (tossText != null || potmName != null) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            listOfNotNull(tossText, potmName?.let { "Player of the match: $it" }).forEach { line ->
+                                Text(text = line, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            }
+                        }
+
                         if (!match.notes.isNull_or_blank()) {
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
@@ -185,93 +198,6 @@ fun MatchDetailScreen(
                             )
                         }
                     }
-                }
-
-                val xi = state.matchPlayers.filter { it.status == MatchPlayerStatus.SELECTED }
-                if (xi.isNotEmpty()) {
-                    SectionHeading("Playing XI")
-                    Text(
-                        xi.mapNotNull { state.playerMap[it.playerId]?.name }.joinToString(", "),
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 4,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SectionHeading("Runs")
-                    xi.forEach { mp ->
-                        val name = state.playerMap[mp.playerId]?.name ?: "Player"
-                        val existing = state.playerStats.find { it.playerId == mp.playerId }
-                        if (!runsDraft.containsKey(mp.playerId)) {
-                            runsDraft[mp.playerId] = (existing?.runs ?: 0).toString()
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                name,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            OutlinedTextField(
-                                value = runsDraft[mp.playerId] ?: "0",
-                                onValueChange = { runsDraft[mp.playerId] = it },
-                                modifier = Modifier.widthIn(min = 64.dp, max = 88.dp),
-                                singleLine = true,
-                                textStyle = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            val stats = xi.map { mp ->
-                                MatchPlayerStats(
-                                    matchId = matchId,
-                                    playerId = mp.playerId,
-                                    runs = runsDraft[mp.playerId]?.toIntOrNull() ?: 0,
-                                    isPlayerOfMatch = match.playerOfTheMatchId == mp.playerId
-                                )
-                            }
-                            viewModel.savePlayerStats(matchId, stats)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Save stats") }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            val csv = viewModel.exportMatchCsv()
-                            if (csv != null) {
-                                context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, csv)
-                                }, "Export CSV"))
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("CSV", style = MaterialTheme.typography.labelMedium) }
-
-                    OutlinedButton(
-                        onClick = {
-                            val message = buildString {
-                                appendLine("Match vs ${match.opponentName}")
-                                appendLine(DateTimeUtils.formatDateTime(match.date))
-                                appendLine("Venue: ${match.venue ?: "TBC"}")
-                                appendLine("Status: ${match.result.displayName}")
-                            }
-                            context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, message)
-                            }, "Share"))
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("Share", style = MaterialTheme.typography.labelMedium) }
                 }
 
                 Row(
@@ -313,6 +239,102 @@ fun MatchDetailScreen(
                             onClick = { onNavigateToExpenseDetail(expense.id) }
                         )
                     }
+                }
+
+                val xi = state.matchPlayers.filter { it.status == MatchPlayerStatus.SELECTED }
+                if (xi.isNotEmpty()) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SectionHeading("Playing XI")
+                    Text(
+                        xi.mapNotNull { state.playerMap[it.playerId]?.name }.joinToString(", "),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    SectionHeading("Runs")
+                    xi.forEach { mp ->
+                        val name = state.playerMap[mp.playerId]?.name ?: "Player"
+                        val existing = state.playerStats.find { it.playerId == mp.playerId }
+                        if (!runsDraft.containsKey(mp.playerId)) {
+                            runsDraft[mp.playerId] = (existing?.runs ?: 0).toString()
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                name,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            OutlinedTextField(
+                                value = runsDraft[mp.playerId] ?: "0",
+                                onValueChange = { runsDraft[mp.playerId] = it.filter(Char::isDigit).take(4) },
+                                modifier = Modifier.widthIn(min = 64.dp, max = 88.dp),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                textStyle = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val stats = xi.map { mp ->
+                                MatchPlayerStats(
+                                    matchId = matchId,
+                                    playerId = mp.playerId,
+                                    runs = runsDraft[mp.playerId]?.toIntOrNull() ?: 0,
+                                    isPlayerOfMatch = match.playerOfTheMatchId == mp.playerId
+                                )
+                            }
+                            viewModel.savePlayerStats(matchId, stats) {
+                                scope.launch { snackbarHostState.showSnackbar("Stats saved") }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Save stats") }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val csv = viewModel.exportMatchCsv()
+                            if (csv != null) {
+                                context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, csv)
+                                }, "Export CSV"))
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("CSV", style = MaterialTheme.typography.labelMedium) }
+
+                    OutlinedButton(
+                        onClick = {
+                            val message = buildString {
+                                appendLine("Match vs ${match.opponentName}")
+                                appendLine(DateTimeUtils.formatDateTime(match.date))
+                                appendLine("Venue: ${match.venue ?: "TBC"}")
+                                appendLine("Status: ${match.result.displayName}")
+                                if (match.teamScore != null && match.opponentScore != null) {
+                                    appendLine("Score: ${match.teamScore} vs ${match.opponentScore}")
+                                }
+                                tossText?.let { appendLine(it) }
+                                potmName?.let { appendLine("Player of the match: $it") }
+                            }
+                            context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, message)
+                            }, "Share"))
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Share", style = MaterialTheme.typography.labelMedium) }
                 }
             }
         }

@@ -84,6 +84,12 @@ interface PlayerDao {
     @Query("SELECT COUNT(*) FROM fines WHERE playerId = :playerId")
     suspend fun countFinesForPlayer(playerId: Long): Int
 
+    @Query("SELECT COUNT(*) FROM expenses WHERE paidByPlayerId = :playerId")
+    suspend fun countExpensesPaidByPlayer(playerId: Long): Int
+
+    @Query("UPDATE matches SET playerOfTheMatchId = NULL WHERE playerOfTheMatchId = :playerId")
+    suspend fun clearPlayerOfTheMatch(playerId: Long)
+
     @Query("DELETE FROM match_players WHERE playerId = :playerId")
     suspend fun deleteMatchPlayersForPlayer(playerId: Long)
 
@@ -259,6 +265,9 @@ interface ContributionDao {
 
     @Update
     suspend fun updateContribution(contribution: ContributionEntity)
+
+    @Query("SELECT * FROM contributions WHERE id = :contributionId")
+    suspend fun getContributionById(contributionId: Long): ContributionEntity?
 
     @Query("DELETE FROM contributions WHERE id = :contributionId")
     suspend fun deleteContributionById(contributionId: Long)

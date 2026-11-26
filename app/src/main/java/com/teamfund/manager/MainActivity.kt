@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
         val appContainer = (application as TeamFundApplication).appContainer
 
         setContent {
-            val themeMode by appContainer.userPreferencesRepository.themeModeFlow.collectAsStateWithLifecycle(initialValue = "LIGHT")
+            val themeMode by appContainer.userPreferencesRepository.themeModeFlow.collectAsStateWithLifecycle(initialValue = "SYSTEM")
             val isDarkTheme = when (themeMode) {
                 "LIGHT" -> false
                 "DARK" -> true
